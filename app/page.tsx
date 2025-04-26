@@ -2,12 +2,16 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { ArrowRight, Video, Edit, MessageSquare, Upload } from "lucide-react"
 import Navbar from "@/components/navbar"
+import { EnvChecker } from "@/components/env-checker"
 
 export default function Home() {
   return (
     <div className="flex min-h-screen flex-col">
       <Navbar />
       <main className="flex-1">
+        {/* Environment variable checker - only shows if env vars are missing */}
+        <EnvChecker />
+
         <section className="w-full py-12 md:py-24 lg:py-32 xl:py-48">
           <div className="container px-4 md:px-6">
             <div className="grid gap-6 lg:grid-cols-2 lg:gap-12 xl:grid-cols-2">
