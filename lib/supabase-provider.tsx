@@ -1,15 +1,15 @@
 "use client"
 
 import type React from "react"
-
 import { createContext, useContext, useEffect, useState } from "react"
-import { createClient } from "@/lib/supabase-client"
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import type { User } from "@supabase/auth-helpers-nextjs"
 import { useRouter } from "next/navigation"
+import type { Database } from "@/types/supabase"
 
 type SupabaseContext = {
-  supabase: SupabaseClient
+  supabase: SupabaseClient<Database>
   user: User | null
   loading: boolean
   error: Error | null
@@ -25,12 +25,15 @@ export function SupabaseProvider({
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
-  const [supabase, setSupabase] = useState<SupabaseClient | null>(null)
+  const [supabase, setSupabase] = useState<SupabaseClient<Database> | null>(null)
   const router = useRouter()
 
   useEffect(() => {
     try {
-      const supabaseClient = createClient()
+      const supabaseClient = createClientComponentClient<Database>({
+        supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
+        supabaseKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+      })
       setSupabase(supabaseClient)
 
       const {
@@ -81,7 +84,7 @@ export function SupabaseProvider({
   return (
     <Context.Provider
       value={{
-        supabase: supabase as SupabaseClient,
+        supabase: supabase as SupabaseClient<Database>,
         user,
         loading,
         error,

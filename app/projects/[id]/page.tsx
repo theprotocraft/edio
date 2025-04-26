@@ -1,4 +1,4 @@
-import { createServerClient } from "@/lib/supabase-client"
+import { createServerClient } from "@/app/supabase-server"
 import { redirect, notFound } from "next/navigation"
 import DashboardLayout from "@/components/dashboard-layout"
 import ProjectHeader from "@/components/project-header"

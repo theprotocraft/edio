@@ -1,4 +1,4 @@
-import { createServerClient } from "@/lib/supabase-client"
+import { createServerClient } from "@/app/supabase-server"
 import { redirect } from "next/navigation"
 import DashboardLayout from "@/components/dashboard-layout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"

@@ -1,4 +1,4 @@
-import { createServerClient } from "@/lib/supabase-client"
+import { createServerClient } from "@/app/supabase-server"
 import { redirect } from "next/navigation"
 import Link from "next/link"
 import DashboardLayout from "@/components/dashboard-layout"
