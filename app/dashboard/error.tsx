@@ -39,7 +39,7 @@ export default function DashboardError({
           </div>
         </CardContent>
         <CardFooter className="flex flex-col space-y-2 sm:flex-row sm:justify-end sm:space-x-2 sm:space-y-0">
-          <Button variant="outline" onClick={() => reset()}>
+          <Button variant="outline" onClick={() => (typeof reset === "function" ? reset() : window.location.reload())}>
             Try again
           </Button>
           <Button asChild>

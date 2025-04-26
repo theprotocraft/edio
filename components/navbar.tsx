@@ -6,14 +6,19 @@ import { Button } from "@/components/ui/button"
 import { ModeToggle } from "@/components/mode-toggle"
 import { Menu, X } from "lucide-react"
 import { useState } from "react"
+import { useSupabase } from "@/lib/supabase-provider"
 
 export default function Navbar() {
   const pathname = usePathname()
   const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const { user } = useSupabase()
 
   const isActive = (path: string) => {
     return pathname === path
   }
+
+  // Check if we're on authentication pages
+  const isAuthPage = pathname === "/login" || pathname === "/register" || pathname === "/forgot-password"
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
@@ -22,44 +27,59 @@ export default function Navbar() {
           <span className="text-xl font-bold">Edio</span>
         </Link>
         <nav className="hidden md:flex ml-auto items-center gap-6">
-          <Link
-            href="/"
-            className={`text-sm font-medium ${
-              isActive("/")
-                ? "text-blue-600 dark:text-blue-500"
-                : "text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-50"
-            }`}
-          >
-            Home
-          </Link>
-          <Link
-            href="/dashboard"
-            className={`text-sm font-medium ${
-              isActive("/dashboard")
-                ? "text-blue-600 dark:text-blue-500"
-                : "text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-50"
-            }`}
-          >
-            Dashboard
-          </Link>
-          <Link
-            href="/projects"
-            className={`text-sm font-medium ${
-              isActive("/projects")
-                ? "text-blue-600 dark:text-blue-500"
-                : "text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-50"
-            }`}
-          >
-            Projects
-          </Link>
-          <Link href="/login">
-            <Button variant="outline" size="sm">
-              Sign In
-            </Button>
-          </Link>
-          <Link href="/register">
-            <Button size="sm">Sign Up</Button>
-          </Link>
+          {/* Only show navigation links if not on auth pages */}
+          {!isAuthPage && (
+            <Link
+              href="/"
+              className={`text-sm font-medium ${
+                isActive("/")
+                  ? "text-blue-600 dark:text-blue-500"
+                  : "text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-50"
+              }`}
+            >
+              Home
+            </Link>
+          )}
+
+          {/* Only show dashboard and projects if user is logged in and not on auth pages */}
+          {!isAuthPage && user && (
+            <>
+              <Link
+                href="/dashboard"
+                className={`text-sm font-medium ${
+                  isActive("/dashboard")
+                    ? "text-blue-600 dark:text-blue-500"
+                    : "text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-50"
+                }`}
+              >
+                Dashboard
+              </Link>
+              <Link
+                href="/projects"
+                className={`text-sm font-medium ${
+                  isActive("/projects")
+                    ? "text-blue-600 dark:text-blue-500"
+                    : "text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-50"
+                }`}
+              >
+                Projects
+              </Link>
+            </>
+          )}
+
+          {/* Show auth buttons if user is not logged in */}
+          {!user && (
+            <>
+              <Link href="/login">
+                <Button variant="outline" size="sm">
+                  Sign In
+                </Button>
+              </Link>
+              <Link href="/register">
+                <Button size="sm">Sign Up</Button>
+              </Link>
+            </>
+          )}
           <ModeToggle />
         </nav>
         <div className="flex md:hidden ml-auto items-center gap-4">
@@ -72,49 +92,62 @@ export default function Navbar() {
       {isMenuOpen && (
         <div className="md:hidden border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950">
           <div className="container py-4 px-4 sm:px-6 flex flex-col gap-4">
-            <Link
-              href="/"
-              className={`text-sm font-medium ${
-                isActive("/")
-                  ? "text-blue-600 dark:text-blue-500"
-                  : "text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-50"
-              }`}
-              onClick={() => setIsMenuOpen(false)}
-            >
-              Home
-            </Link>
-            <Link
-              href="/dashboard"
-              className={`text-sm font-medium ${
-                isActive("/dashboard")
-                  ? "text-blue-600 dark:text-blue-500"
-                  : "text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-50"
-              }`}
-              onClick={() => setIsMenuOpen(false)}
-            >
-              Dashboard
-            </Link>
-            <Link
-              href="/projects"
-              className={`text-sm font-medium ${
-                isActive("/projects")
-                  ? "text-blue-600 dark:text-blue-500"
-                  : "text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-50"
-              }`}
-              onClick={() => setIsMenuOpen(false)}
-            >
-              Projects
-            </Link>
-            <div className="flex flex-col gap-2">
-              <Link href="/login" onClick={() => setIsMenuOpen(false)}>
-                <Button variant="outline" className="w-full">
-                  Sign In
-                </Button>
+            {/* Only show navigation links if not on auth pages */}
+            {!isAuthPage && (
+              <Link
+                href="/"
+                className={`text-sm font-medium ${
+                  isActive("/")
+                    ? "text-blue-600 dark:text-blue-500"
+                    : "text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-50"
+                }`}
+                onClick={() => setIsMenuOpen(false)}
+              >
+                Home
               </Link>
-              <Link href="/register" onClick={() => setIsMenuOpen(false)}>
-                <Button className="w-full">Sign Up</Button>
-              </Link>
-            </div>
+            )}
+
+            {/* Only show dashboard and projects if user is logged in and not on auth pages */}
+            {!isAuthPage && user && (
+              <>
+                <Link
+                  href="/dashboard"
+                  className={`text-sm font-medium ${
+                    isActive("/dashboard")
+                      ? "text-blue-600 dark:text-blue-500"
+                      : "text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-50"
+                  }`}
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  Dashboard
+                </Link>
+                <Link
+                  href="/projects"
+                  className={`text-sm font-medium ${
+                    isActive("/projects")
+                      ? "text-blue-600 dark:text-blue-500"
+                      : "text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-50"
+                  }`}
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  Projects
+                </Link>
+              </>
+            )}
+
+            {/* Show auth buttons if user is not logged in */}
+            {!user && (
+              <div className="flex flex-col gap-2">
+                <Link href="/login" onClick={() => setIsMenuOpen(false)}>
+                  <Button variant="outline" className="w-full">
+                    Sign In
+                  </Button>
+                </Link>
+                <Link href="/register" onClick={() => setIsMenuOpen(false)}>
+                  <Button className="w-full">Sign Up</Button>
+                </Link>
+              </div>
+            )}
           </div>
         </div>
       )}
