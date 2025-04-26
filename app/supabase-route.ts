@@ -11,7 +11,7 @@ export const createRouteClient = () => {
       cookies: () => cookieStore,
       supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
       supabaseKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    })
+    } as any)
   } catch (error) {
     console.error("Error creating route client:", error)
     throw error
