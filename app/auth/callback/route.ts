@@ -6,35 +6,42 @@ export async function GET(request: NextRequest) {
   try {
     const requestUrl = new URL(request.url)
     const code = requestUrl.searchParams.get("code")
-    const userType = requestUrl.searchParams.get("user_type") || "creator"
+    const userRole = requestUrl.searchParams.get("role") === "editor" ? "editor" : "youtuber"
 
-    if (code) {
-      const supabase = createRouteClient()
+    if (!code) {
+      console.error("No code provided in auth callback")
+      return NextResponse.redirect(new URL("/login?error=no_code", request.url))
+    }
 
-      const { data, error } = await supabase.auth.exchangeCodeForSession(code)
+    const supabase = createRouteClient()
 
-      if (!error && data?.user) {
-        try {
-          // Check if user profile exists
-          const { data: profile } = await supabase.from("profiles").select().eq("id", data.user.id).single()
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code)
 
-          // If profile doesn't exist, create it
-          if (!profile) {
-            await supabase.from("profiles").insert({
-              id: data.user.id,
-              email: data.user.email,
-              name: data.user.user_metadata.full_name || data.user.user_metadata.name || "",
-              avatar_url: data.user.user_metadata.avatar_url || "",
-              user_type: userType,
-            })
-          }
-        } catch (profileError) {
-          console.error("Error handling user profile:", profileError)
-          // Continue even if profile creation fails
+    if (error || !data?.user) {
+      console.error("Auth exchange error:", error)
+      return NextResponse.redirect(new URL("/login?error=auth_exchange", request.url))
+    }
+
+    try {
+      // Check if user profile exists
+      const { data: user } = await supabase.from("users").select().eq("id", data.user.id).single()
+
+      // If user doesn't exist, create it
+      if (!user) {
+        const { error: insertError } = await supabase.from("users").insert({
+          id: data.user.id,
+          email: data.user.email,
+          name: data.user.user_metadata.full_name || data.user.user_metadata.name || "",
+          role: userRole,
+        })
+
+        if (insertError) {
+          console.error("Error creating user profile:", insertError)
         }
-      } else if (error) {
-        console.error("Auth exchange error:", error)
       }
+    } catch (profileError) {
+      console.error("Error handling user profile:", profileError)
+      // Continue even if profile creation fails
     }
 
     // URL to redirect to after sign in process completes
@@ -42,6 +49,6 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error("Auth callback error:", error)
     // Redirect to home page if there's an error
-    return NextResponse.redirect(new URL("/", request.url))
+    return NextResponse.redirect(new URL("/?error=callback_failed", request.url))
   }
 }

@@ -21,17 +21,20 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import type { PresignedUrlRequest, PresignedUrlResponse } from "@/lib/s3-service"
+import { Progress } from "@/components/ui/progress"
 
 interface FileUploadProps {
   project: any
   uploads: any[]
-  userRole: "creator" | "editor"
+  userRole: "youtuber" | "editor"
 }
 
 export function FileUpload({ project, uploads, userRole }: FileUploadProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [description, setDescription] = useState("")
   const [uploading, setUploading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState(0)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [fileToDelete, setFileToDelete] = useState<string | null>(null)
   const { supabase } = useSupabase()
@@ -42,6 +45,14 @@ export function FileUpload({ project, uploads, userRole }: FileUploadProps) {
     if (e.target.files && e.target.files[0]) {
       setSelectedFile(e.target.files[0])
     }
+  }
+
+  const getFileType = (mimeType: string): "video" | "thumbnail" | "audio" | "document" | "other" => {
+    if (mimeType.startsWith("video/")) return "video"
+    if (mimeType.startsWith("image/")) return "thumbnail"
+    if (mimeType.startsWith("audio/")) return "audio"
+    if (mimeType === "application/pdf" || mimeType.includes("document")) return "document"
+    return "other"
   }
 
   const handleUpload = async (e: React.FormEvent) => {
@@ -57,34 +68,46 @@ export function FileUpload({ project, uploads, userRole }: FileUploadProps) {
     }
 
     setUploading(true)
+    setUploadProgress(0)
 
     try {
-      // Get pre-signed URL from your backend
-      const fileName = `${project.id}/${Date.now()}-${selectedFile.name}`
-      const fileType = selectedFile.type
+      // Get pre-signed URL from your API
+      const fileType = getFileType(selectedFile.type)
+      const fileName = `${Date.now()}-${selectedFile.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`
 
-      // Get pre-signed URL from S3 (this would be a server action or API route in production)
-      // For demo purposes, we'll simulate this
-      const uploadUrl = `https://example-s3-bucket.s3.amazonaws.com/${fileName}`
+      const presignedUrlRequest: PresignedUrlRequest = {
+        projectId: project.id,
+        fileName,
+        contentType: selectedFile.type,
+        fileType,
+      }
 
-      // In a real implementation, you would upload to the pre-signed URL
-      // await fetch(uploadUrl, {
-      //   method: 'PUT',
-      //   body: selectedFile,
-      //   headers: {
-      //     'Content-Type': fileType,
-      //   },
-      // });
+      const response = await fetch("/api/uploads/presigned-url", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(presignedUrlRequest),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Failed to get upload URL")
+      }
+
+      const { uploadUrl, fileUrl }: PresignedUrlResponse = await response.json()
+
+      // Upload to the presigned URL with progress tracking
+      await uploadFileWithProgress(uploadUrl, selectedFile)
 
       // Save file metadata to Supabase
       const { error } = await supabase.from("uploads").insert({
         project_id: project.id,
-        file_name: selectedFile.name,
+        user_id: supabase.auth.getUser().then(({ data }) => data.user?.id),
+        file_url: fileUrl,
         file_type: fileType,
+        file_name: selectedFile.name,
         file_size: selectedFile.size,
-        file_url: uploadUrl,
-        description: description,
-        uploaded_by: userRole === "creator" ? project.creator_id : project.editor_id,
       })
 
       if (error) {
@@ -99,6 +122,7 @@ export function FileUpload({ project, uploads, userRole }: FileUploadProps) {
       // Reset form
       setSelectedFile(null)
       setDescription("")
+      setUploadProgress(0)
 
       // Refresh the page to show the new upload
       router.refresh()
@@ -108,23 +132,70 @@ export function FileUpload({ project, uploads, userRole }: FileUploadProps) {
         description: error.message || "Failed to upload file.",
         variant: "destructive",
       })
+      setUploadProgress(0)
     } finally {
       setUploading(false)
     }
+  }
+
+  const uploadFileWithProgress = async (url: string, file: File): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest()
+
+      xhr.upload.addEventListener("progress", (event) => {
+        if (event.lengthComputable) {
+          const percentComplete = Math.round((event.loaded / event.total) * 100)
+          setUploadProgress(percentComplete)
+        }
+      })
+
+      xhr.addEventListener("load", () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve()
+        } else {
+          reject(new Error(`Upload failed with status ${xhr.status}`))
+        }
+      })
+
+      xhr.addEventListener("error", () => {
+        reject(new Error("Upload failed due to network error"))
+      })
+
+      xhr.addEventListener("abort", () => {
+        reject(new Error("Upload aborted"))
+      })
+
+      xhr.open("PUT", url)
+      xhr.setRequestHeader("Content-Type", file.type)
+      xhr.send(file)
+    })
   }
 
   const handleDeleteFile = async () => {
     if (!fileToDelete) return
 
     try {
-      // Delete file from Supabase
+      // Get the file URL to delete from S3
+      const { data: fileData, error: fetchError } = await supabase
+        .from("uploads")
+        .select("file_url")
+        .eq("id", fileToDelete)
+        .single()
+
+      if (fetchError) {
+        throw fetchError
+      }
+
+      // Delete file metadata from Supabase
       const { error } = await supabase.from("uploads").delete().eq("id", fileToDelete)
 
       if (error) {
         throw error
       }
 
-      // In a real implementation, you would also delete from S3
+      // In a production environment, you would also delete from S3
+      // This would typically be done via a server action or API route
+      // that calls the S3 DeleteObject API
 
       toast({
         title: "File deleted",
@@ -146,11 +217,11 @@ export function FileUpload({ project, uploads, userRole }: FileUploadProps) {
   }
 
   const getFileIcon = (fileType: string) => {
-    if (fileType.startsWith("image/")) {
+    if (fileType === "thumbnail") {
       return <ImageIcon className="h-6 w-6 text-blue-500" />
-    } else if (fileType.startsWith("video/")) {
+    } else if (fileType === "video") {
       return <Video className="h-6 w-6 text-purple-500" />
-    } else if (fileType.startsWith("text/")) {
+    } else if (fileType === "document") {
       return <FileText className="h-6 w-6 text-green-500" />
     } else {
       return <File className="h-6 w-6 text-gray-500" />
@@ -190,6 +261,17 @@ export function FileUpload({ project, uploads, userRole }: FileUploadProps) {
                   </Button>
                 </div>
               </div>
+
+              {uploading && (
+                <div className="space-y-2">
+                  <div className="flex justify-between text-xs text-gray-500">
+                    <span>Uploading...</span>
+                    <span>{uploadProgress}%</span>
+                  </div>
+                  <Progress value={uploadProgress} className="h-2" />
+                </div>
+              )}
+
               <div className="space-y-2">
                 <Label htmlFor="description">Description (Optional)</Label>
                 <Input
@@ -254,9 +336,7 @@ export function FileUpload({ project, uploads, userRole }: FileUploadProps) {
                   <div className="flex items-center space-x-4 mt-1 text-xs text-gray-500 dark:text-gray-400">
                     <span>{formatFileSize(upload.file_size)}</span>
                     <span>{new Date(upload.created_at).toLocaleDateString()}</span>
-                    <span>
-                      {upload.uploaded_by === project.creator_id ? "Uploaded by Creator" : "Uploaded by Editor"}
-                    </span>
+                    <span>{upload.user_id === project.owner_id ? "Uploaded by Creator" : "Uploaded by Editor"}</span>
                   </div>
                 </div>
               </div>

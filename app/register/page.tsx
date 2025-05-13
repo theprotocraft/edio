@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label"
 import Navbar from "@/components/navbar"
 
 export default function RegisterPage() {
-  const [userType, setUserType] = useState("creator")
+  const [userRole, setUserRole] = useState("youtuber")
   const [loading, setLoading] = useState(false)
   const { supabase } = useSupabase()
   const router = useRouter()
@@ -23,12 +23,16 @@ export default function RegisterPage() {
     setLoading(true)
 
     try {
+      const origin = window.location.origin
+
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
+          redirectTo: `${origin}/auth/callback`,
           queryParams: {
-            user_type: userType,
+            role: userRole,
+            access_type: "offline",
+            prompt: "consent",
           },
         },
       })
@@ -58,10 +62,10 @@ export default function RegisterPage() {
           <CardContent className="space-y-6">
             <div className="space-y-3">
               <Label className="text-center block">I am a</Label>
-              <RadioGroup value={userType} onValueChange={setUserType} className="flex justify-center space-x-6">
+              <RadioGroup value={userRole} onValueChange={setUserRole} className="flex justify-center space-x-6">
                 <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="creator" id="creator" />
-                  <Label htmlFor="creator">Content Creator</Label>
+                  <RadioGroupItem value="youtuber" id="youtuber" />
+                  <Label htmlFor="youtuber">Content Creator</Label>
                 </div>
                 <div className="flex items-center space-x-2">
                   <RadioGroupItem value="editor" id="editor" />
