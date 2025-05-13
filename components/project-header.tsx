@@ -10,9 +10,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
-import { Calendar, Clock, MoreHorizontal, Trash, Edit, CheckCircle } from "lucide-react"
+import { Clock, MoreHorizontal, Trash, Edit, CheckCircle } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { useSupabase } from "@/lib/supabase-provider"
 import {
@@ -28,10 +28,11 @@ import {
 
 interface ProjectHeaderProps {
   project: any
-  userRole: "creator" | "editor"
+  editors: any[]
+  userRole: "youtuber" | "editor"
 }
 
-export default function ProjectHeader({ project, userRole }: ProjectHeaderProps) {
+export default function ProjectHeader({ project, editors, userRole }: ProjectHeaderProps) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [completeDialogOpen, setCompleteDialogOpen] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -73,7 +74,7 @@ export default function ProjectHeader({ project, userRole }: ProjectHeaderProps)
 
     try {
       // Update project status
-      const { error } = await supabase.from("projects").update({ status: "completed" }).eq("id", project.id)
+      const { error } = await supabase.from("projects").update({ status: "approved" }).eq("id", project.id)
 
       if (error) {
         throw error
@@ -99,16 +100,22 @@ export default function ProjectHeader({ project, userRole }: ProjectHeaderProps)
 
   const getStatusBadge = () => {
     switch (project.status) {
-      case "completed":
+      case "approved":
         return (
           <Badge variant="outline" className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100">
-            Completed
+            Approved
           </Badge>
         )
-      case "review":
+      case "in_review":
         return (
           <Badge variant="outline" className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-100">
             In Review
+          </Badge>
+        )
+      case "needs_changes":
+        return (
+          <Badge variant="outline" className="bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-100">
+            Needs Changes
           </Badge>
         )
       default:
@@ -125,17 +132,11 @@ export default function ProjectHeader({ project, userRole }: ProjectHeaderProps)
       <div className="flex flex-col space-y-4 md:flex-row md:items-start md:justify-between md:space-y-0">
         <div>
           <div className="flex items-center space-x-2">
-            <h1 className="text-3xl font-bold">{project.title}</h1>
+            <h1 className="text-3xl font-bold">{project.project_title}</h1>
             {getStatusBadge()}
           </div>
           <p className="mt-2 text-gray-500 dark:text-gray-400">{project.description || "No description provided"}</p>
           <div className="mt-4 flex flex-wrap items-center gap-4">
-            {project.deadline && (
-              <div className="flex items-center text-sm">
-                <Calendar className="mr-2 h-4 w-4 text-gray-500" />
-                <span>Due {new Date(project.deadline).toLocaleDateString()}</span>
-              </div>
-            )}
             <div className="flex items-center text-sm">
               <Clock className="mr-2 h-4 w-4 text-gray-500" />
               <span>Updated {new Date(project.updated_at).toLocaleDateString()}</span>
@@ -144,7 +145,7 @@ export default function ProjectHeader({ project, userRole }: ProjectHeaderProps)
         </div>
 
         <div className="flex items-center space-x-2">
-          {userRole === "creator" && project.status !== "completed" && (
+          {userRole === "youtuber" && project.status !== "approved" && (
             <Button variant="outline" onClick={() => setCompleteDialogOpen(true)} disabled={loading}>
               <CheckCircle className="mr-2 h-4 w-4" />
               Mark as Complete
@@ -187,22 +188,24 @@ export default function ProjectHeader({ project, userRole }: ProjectHeaderProps)
           <span className="text-sm font-medium">Creator:</span>
           <div className="flex items-center space-x-2">
             <Avatar className="h-6 w-6">
-              <AvatarImage src={project.creator?.avatar_url || ""} alt={project.creator?.name || "Creator"} />
-              <AvatarFallback>{project.creator?.name?.charAt(0) || "C"}</AvatarFallback>
+              <AvatarFallback>{project.owner?.name?.charAt(0) || "C"}</AvatarFallback>
             </Avatar>
-            <span>{project.creator?.name || "Unknown"}</span>
+            <span>{project.owner?.name || "Unknown"}</span>
           </div>
         </div>
 
         <div className="flex items-center space-x-2">
-          <span className="text-sm font-medium">Editor:</span>
-          {project.editor ? (
+          <span className="text-sm font-medium">Editors:</span>
+          {editors && editors.length > 0 ? (
             <div className="flex items-center space-x-2">
-              <Avatar className="h-6 w-6">
-                <AvatarImage src={project.editor?.avatar_url || ""} alt={project.editor?.name || "Editor"} />
-                <AvatarFallback>{project.editor?.name?.charAt(0) || "E"}</AvatarFallback>
-              </Avatar>
-              <span>{project.editor?.name || "Unknown"}</span>
+              {editors.map((pe) => (
+                <div key={pe.id} className="flex items-center space-x-1">
+                  <Avatar className="h-6 w-6">
+                    <AvatarFallback>{pe.editor?.name?.charAt(0) || "E"}</AvatarFallback>
+                  </Avatar>
+                  <span>{pe.editor?.name || "Unknown"}</span>
+                </div>
+              ))}
             </div>
           ) : (
             <span className="text-gray-500 dark:text-gray-400">Unassigned</span>
@@ -236,7 +239,7 @@ export default function ProjectHeader({ project, userRole }: ProjectHeaderProps)
           <AlertDialogHeader>
             <AlertDialogTitle>Mark project as complete?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will mark the project as completed. You can still access all project data, but it will be moved to
+              This will mark the project as approved. You can still access all project data, but it will be moved to
               your completed projects list.
             </AlertDialogDescription>
           </AlertDialogHeader>

@@ -38,7 +38,6 @@ interface VideoVersionsProps {
 }
 
 export function VideoVersions({ project, versions, userRole }: VideoVersionsProps) {
-  const [title, setTitle] = useState("")
   const [videoUrl, setVideoUrl] = useState("")
   const [notes, setNotes] = useState("")
   const [loading, setLoading] = useState(false)
@@ -56,10 +55,10 @@ export function VideoVersions({ project, versions, userRole }: VideoVersionsProp
   const handleAddVersion = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!title || !videoUrl) {
+    if (!videoUrl) {
       toast({
         title: "Missing information",
-        description: "Please provide a title and video URL.",
+        description: "Please provide a video URL.",
         variant: "destructive",
       })
       return
@@ -74,21 +73,19 @@ export function VideoVersions({ project, versions, userRole }: VideoVersionsProp
       // Save version to Supabase
       const { error } = await supabase.from("video_versions").insert({
         project_id: project.id,
-        title,
-        video_url: videoUrl,
-        notes,
+        uploader_id: userRole === "creator" ? project.owner_id : project.editors[0]?.editor_id,
         version_number: nextVersionNumber,
-        status: "pending",
-        created_by: userRole === "creator" ? project.creator_id : project.editor_id,
+        file_url: videoUrl,
+        notes,
       })
 
       if (error) {
         throw error
       }
 
-      // Update project status to "review" if editor submitted a version
+      // Update project status to "in_review" if editor submitted a version
       if (userRole === "editor") {
-        await supabase.from("projects").update({ status: "review" }).eq("id", project.id)
+        await supabase.from("projects").update({ status: "in_review" }).eq("id", project.id)
       }
 
       toast({
@@ -97,7 +94,6 @@ export function VideoVersions({ project, versions, userRole }: VideoVersionsProp
       })
 
       // Reset form
-      setTitle("")
       setVideoUrl("")
       setNotes("")
 
@@ -148,20 +144,10 @@ export function VideoVersions({ project, versions, userRole }: VideoVersionsProp
     if (!versionToApprove) return
 
     try {
-      // Update version status
-      const { error: versionError } = await supabase
-        .from("video_versions")
-        .update({ status: "approved" })
-        .eq("id", versionToApprove)
-
-      if (versionError) {
-        throw versionError
-      }
-
       // Update project status
       const { error: projectError } = await supabase
         .from("projects")
-        .update({ status: "completed" })
+        .update({ status: "approved" })
         .eq("id", project.id)
 
       if (projectError) {
@@ -192,19 +178,19 @@ export function VideoVersions({ project, versions, userRole }: VideoVersionsProp
 
     try {
       // Add feedback as a chat message
-      const { error } = await supabase.from("chat_messages").insert({
+      const { error } = await supabase.from("messages").insert({
         project_id: project.id,
-        sender_id: userRole === "creator" ? project.creator_id : project.editor_id,
-        message: `Feedback on version ${selectedVersion.version_number} (${selectedVersion.title}): ${feedback}`,
-        message_type: "feedback",
+        sender_id: userRole === "creator" ? project.owner_id : project.editors[0]?.editor_id,
+        content: `Feedback on version ${selectedVersion.version_number}: ${feedback}`,
+        type: "feedback",
       })
 
       if (error) {
         throw error
       }
 
-      // Update version status to "feedback"
-      await supabase.from("video_versions").update({ status: "feedback" }).eq("id", selectedVersion.id)
+      // Update project status to "needs_changes"
+      await supabase.from("projects").update({ status: "needs_changes" }).eq("id", project.id)
 
       toast({
         title: "Feedback sent",
@@ -226,29 +212,6 @@ export function VideoVersions({ project, versions, userRole }: VideoVersionsProp
     }
   }
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "approved":
-        return (
-          <span className="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100">
-            Approved
-          </span>
-        )
-      case "feedback":
-        return (
-          <span className="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-100">
-            Feedback Provided
-          </span>
-        )
-      default:
-        return (
-          <span className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100">
-            Pending Review
-          </span>
-        )
-    }
-  }
-
   return (
     <div className="space-y-6">
       {userRole === "editor" && (
@@ -256,16 +219,6 @@ export function VideoVersions({ project, versions, userRole }: VideoVersionsProp
           <CardContent className="pt-6">
             <form onSubmit={handleAddVersion} className="space-y-4">
               <h3 className="text-lg font-medium mb-4">Add New Version</h3>
-              <div className="space-y-2">
-                <Label htmlFor="title">Version Title</Label>
-                <Input
-                  id="title"
-                  placeholder="e.g., First Draft, Final Cut"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  required
-                />
-              </div>
               <div className="space-y-2">
                 <Label htmlFor="videoUrl">Video URL</Label>
                 <Input
@@ -304,25 +257,22 @@ export function VideoVersions({ project, versions, userRole }: VideoVersionsProp
               <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-2">
-                    <h4 className="font-medium">
-                      Version {version.version_number}: {version.title}
-                    </h4>
-                    {getStatusBadge(version.status)}
+                    <h4 className="font-medium">Version {version.version_number}</h4>
                   </div>
 
                   <div className="aspect-video bg-gray-100 dark:bg-gray-800 rounded-md mb-4 overflow-hidden">
-                    {version.video_url && (
+                    {version.file_url && (
                       <iframe
                         src={
-                          version.video_url.includes("youtube.com")
-                            ? version.video_url.replace("watch?v=", "embed/")
-                            : version.video_url.includes("vimeo.com")
-                              ? version.video_url.replace("vimeo.com", "player.vimeo.com/video")
-                              : version.video_url
+                          version.file_url.includes("youtube.com")
+                            ? version.file_url.replace("watch?v=", "embed/")
+                            : version.file_url.includes("vimeo.com")
+                              ? version.file_url.replace("vimeo.com", "player.vimeo.com/video")
+                              : version.file_url
                         }
                         className="w-full h-full"
                         allowFullScreen
-                        title={version.title}
+                        title={`Version ${version.version_number}`}
                       />
                     )}
                   </div>
@@ -335,13 +285,13 @@ export function VideoVersions({ project, versions, userRole }: VideoVersionsProp
                   )}
 
                   <div className="flex items-center space-x-4 text-xs text-gray-500 dark:text-gray-400">
-                    <span>{version.created_by === project.creator_id ? "Added by Creator" : "Added by Editor"}</span>
+                    <span>{version.uploader_id === project.owner_id ? "Added by Creator" : "Added by Editor"}</span>
                     <span>{new Date(version.created_at).toLocaleDateString()}</span>
                   </div>
                 </div>
 
                 <div className="flex flex-row md:flex-col gap-2">
-                  {userRole === "creator" && version.status === "pending" && (
+                  {userRole === "creator" && project.status === "in_review" && (
                     <>
                       <Button
                         variant="default"
@@ -366,8 +316,8 @@ export function VideoVersions({ project, versions, userRole }: VideoVersionsProp
                     </>
                   )}
 
-                  {((userRole === "creator" && version.created_by === project.creator_id) ||
-                    (userRole === "editor" && version.created_by === project.editor_id)) && (
+                  {((userRole === "creator" && version.uploader_id === project.owner_id) ||
+                    (userRole === "editor" && version.uploader_id !== project.owner_id)) && (
                     <Button
                       variant="ghost"
                       size="sm"
@@ -399,7 +349,7 @@ export function VideoVersions({ project, versions, userRole }: VideoVersionsProp
             </p>
           )}
           {userRole === "editor" && (
-            <Button onClick={() => document.getElementById("title")?.focus()}>
+            <Button onClick={() => document.getElementById("videoUrl")?.focus()}>
               <Plus className="mr-2 h-4 w-4" /> Add First Version
             </Button>
           )}

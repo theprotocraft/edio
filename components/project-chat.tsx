@@ -10,6 +10,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useToast } from "@/hooks/use-toast"
 import { useSupabase } from "@/lib/supabase-provider"
 import { Send } from "lucide-react"
+import { getInitials } from "@/lib/utils"
 
 interface ProjectChatProps {
   project: any
@@ -43,11 +44,11 @@ export function ProjectChat({ project, messages, userId }: ProjectChatProps) {
     setSending(true)
 
     try {
-      const { error } = await supabase.from("chat_messages").insert({
+      const { error } = await supabase.from("messages").insert({
         project_id: project.id,
         sender_id: userId,
-        message: newMessage,
-        message_type: "text",
+        content: newMessage,
+        type: "text",
       })
 
       if (error) {
@@ -110,24 +111,22 @@ export function ProjectChat({ project, messages, userId }: ProjectChatProps) {
                 >
                   <div className={`flex max-w-[80%] ${message.sender_id === userId ? "flex-row-reverse" : "flex-row"}`}>
                     <Avatar className={`h-8 w-8 ${message.sender_id === userId ? "ml-2" : "mr-2"}`}>
-                      <AvatarImage src={message.sender?.avatar_url || ""} alt={message.sender?.name || "User"} />
-                      <AvatarFallback>{message.sender?.name?.charAt(0) || "U"}</AvatarFallback>
+                      <AvatarImage src="/placeholder.svg" alt={message.sender?.name || "User"} />
+                      <AvatarFallback>{getInitials(message.sender?.name || "User")}</AvatarFallback>
                     </Avatar>
 
                     <div>
                       <div
                         className={`rounded-lg p-3 ${
-                          message.message_type === "feedback"
+                          message.type === "feedback"
                             ? "bg-yellow-50 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-100"
                             : message.sender_id === userId
                               ? "bg-blue-50 text-blue-800 dark:bg-blue-900 dark:text-blue-100"
                               : "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100"
                         }`}
                       >
-                        {message.message_type === "feedback" && (
-                          <div className="font-medium mb-1 text-sm">Feedback:</div>
-                        )}
-                        <p className="text-sm">{message.message}</p>
+                        {message.type === "feedback" && <div className="font-medium mb-1 text-sm">Feedback:</div>}
+                        <p className="text-sm">{message.content}</p>
                       </div>
                       <div
                         className={`text-xs text-gray-500 mt-1 ${

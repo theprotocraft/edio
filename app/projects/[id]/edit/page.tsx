@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import DashboardLayout from "@/components/dashboard-layout"
 import { Button } from "@/components/ui/button"
@@ -13,14 +13,71 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { useToast } from "@/hooks/use-toast"
 import { useSupabase } from "@/lib/supabase-provider"
 
-export default function NewProjectPage() {
+interface EditProjectPageProps {
+  params: {
+    id: string
+  }
+}
+
+export default function EditProjectPage({ params }: EditProjectPageProps) {
+  const { id } = params
   const [title, setTitle] = useState("")
   const [description, setDescription] = useState("")
-  const [deadline, setDeadline] = useState<Date | undefined>(undefined)
   const [loading, setLoading] = useState(false)
+  const [initialLoading, setInitialLoading] = useState(true)
   const { supabase, user } = useSupabase()
   const router = useRouter()
   const { toast } = useToast()
+
+  useEffect(() => {
+    const fetchProject = async () => {
+      if (!user) return
+
+      try {
+        const { data: project, error } = await supabase
+          .from("projects")
+          .select(`
+            *,
+            owner:users!projects_owner_id_fkey(id),
+            editors:project_editors(editor_id)
+          `)
+          .eq("id", id)
+          .single()
+
+        if (error) {
+          throw error
+        }
+
+        if (!project) {
+          router.push("/projects")
+          return
+        }
+
+        // Check if user has access to this project
+        const userIsOwner = project.owner_id === user.id
+        const userIsEditor = project.editors.some((editor) => editor.editor_id === user.id)
+
+        if (!userIsOwner && !userIsEditor) {
+          router.push("/projects")
+          return
+        }
+
+        setTitle(project.project_title || "")
+        setDescription(project.description || "")
+      } catch (error: any) {
+        toast({
+          title: "Error",
+          description: error.message || "Failed to load project.",
+          variant: "destructive",
+        })
+        router.push("/projects")
+      } finally {
+        setInitialLoading(false)
+      }
+    }
+
+    fetchProject()
+  }, [id, supabase, user, router, toast])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -28,7 +85,7 @@ export default function NewProjectPage() {
     if (!user) {
       toast({
         title: "Authentication error",
-        description: "You must be logged in to create a project.",
+        description: "You must be logged in to update a project.",
         variant: "destructive",
       })
       return
@@ -46,59 +103,29 @@ export default function NewProjectPage() {
     setLoading(true)
 
     try {
-      // Get user profile to determine if creator or editor
-      const { data: userData, error: userError } = await supabase
-        .from("users")
-        .select("role")
-        .eq("id", user.id)
-        .single()
-
-      if (userError) {
-        throw new Error("Failed to fetch user data")
-      }
-
-      if (!userData) {
-        throw new Error("User profile not found")
-      }
-
-      // Create the project
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from("projects")
-        .insert({
+        .update({
           project_title: title,
           description,
-          owner_id: userData.role === "youtuber" ? user.id : null,
-          status: "pending",
         })
-        .select()
+        .eq("id", id)
 
       if (error) {
         throw error
       }
 
-      // If user is an editor, add them as a project editor
-      if (userData.role === "editor" && data && data[0]) {
-        const { error: editorError } = await supabase.from("project_editors").insert({
-          project_id: data[0].id,
-          editor_id: user.id,
-        })
-
-        if (editorError) {
-          console.error("Failed to add editor to project:", editorError)
-        }
-      }
-
       toast({
-        title: "Project created",
-        description: "Your new project has been created successfully.",
+        title: "Project updated",
+        description: "Your project has been updated successfully.",
       })
 
-      // Navigate to the project page
-      router.push(`/projects/${data[0].id}`)
+      // Navigate back to the project page
+      router.push(`/projects/${id}`)
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message || "Failed to create project.",
+        description: error.message || "Failed to update project.",
         variant: "destructive",
       })
     } finally {
@@ -106,16 +133,29 @@ export default function NewProjectPage() {
     }
   }
 
+  if (initialLoading) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-[60vh]">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+            <p className="mt-4 text-gray-500 dark:text-gray-400">Loading project...</p>
+          </div>
+        </div>
+      </DashboardLayout>
+    )
+  }
+
   return (
     <DashboardLayout>
       <div className="flex flex-col space-y-6">
-        <h1 className="text-3xl font-bold">Create New Project</h1>
+        <h1 className="text-3xl font-bold">Edit Project</h1>
 
         <Card>
           <form onSubmit={handleSubmit}>
             <CardHeader>
               <CardTitle>Project Details</CardTitle>
-              <CardDescription>Fill in the details for your new video project</CardDescription>
+              <CardDescription>Update the details for your project</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
@@ -139,9 +179,12 @@ export default function NewProjectPage() {
                 />
               </div>
             </CardContent>
-            <CardFooter>
+            <CardFooter className="flex justify-between">
+              <Button variant="outline" type="button" onClick={() => router.push(`/projects/${id}`)}>
+                Cancel
+              </Button>
               <Button type="submit" disabled={loading}>
-                {loading ? "Creating..." : "Create Project"}
+                {loading ? "Saving..." : "Save Changes"}
               </Button>
             </CardFooter>
           </form>
