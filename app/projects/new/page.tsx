@@ -16,6 +16,7 @@ import { useSupabase } from "@/lib/supabase-provider"
 export default function NewProjectPage() {
   const [title, setTitle] = useState("")
   const [description, setDescription] = useState("")
+  const [deadline, setDeadline] = useState<Date | undefined>(undefined)
   const [loading, setLoading] = useState(false)
   const { supabase, user } = useSupabase()
   const router = useRouter()
@@ -45,7 +46,7 @@ export default function NewProjectPage() {
     setLoading(true)
 
     try {
-      // Get user data to determine if creator or editor
+      // Get user profile to determine if creator or editor
       const { data: userData, error: userError } = await supabase
         .from("users")
         .select("role")

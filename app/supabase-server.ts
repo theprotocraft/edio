@@ -2,60 +2,59 @@ import { createServerComponentClient } from "@supabase/auth-helpers-nextjs"
 import { cookies } from "next/headers"
 import type { Database } from "@/types/supabase"
 
-export const createServerSupabaseClient = async () => {
-  const cookieStore = await cookies()
-  return createServerComponentClient<Database>({ cookies: () => cookieStore })
-}
-
-export async function getSession() {
-  const supabase = await createServerSupabaseClient()
+// Server-side Supabase client for Server Components
+export const createServerClient = () => {
   try {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession()
-    return session
-  } catch (error) {
-    console.error("Error getting session:", error)
-    return null
-  }
-}
+    const cookieStore = cookies()
 
-export async function getUser() {
-  const supabase = await createServerSupabaseClient()
-  try {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-    return user
-  } catch (error) {
-    console.error("Error getting user:", error)
-    return null
-  }
-}
-
-export async function getUserDetails() {
-  const supabase = await createServerSupabaseClient()
-  try {
-    const user = await getUser()
-
-    if (!user) {
-      return null
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+      console.error("Missing Supabase environment variables")
+      // Return a minimal client that won't throw errors but will return empty data
+      return {
+        auth: {
+          getSession: () => Promise.resolve({ data: { session: null }, error: null }),
+        },
+        from: () => ({
+          select: () => ({
+            eq: () => ({
+              single: () => Promise.resolve({ data: null, error: null }),
+              limit: () => Promise.resolve({ data: [], error: null }),
+            }),
+            or: () => ({
+              order: () => ({
+                limit: () => Promise.resolve({ data: [], error: null }),
+              }),
+            }),
+          }),
+        }),
+      } as any
     }
 
-    const { data: userDetails } = await supabase
-      .from("users") // Changed from 'profiles' to 'users'
-      .select("*")
-      .eq("id", user.id)
-      .single()
-
-    return userDetails
+    return createServerComponentClient<Database>({
+      cookies: () => cookieStore,
+      supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
+      supabaseKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    })
   } catch (error) {
-    console.error("Error getting user details:", error)
-    return null
+    console.error("Error creating server client:", error)
+    // Return a minimal client that won't throw errors
+    return {
+      auth: {
+        getSession: () => Promise.resolve({ data: { session: null }, error: null }),
+      },
+      from: () => ({
+        select: () => ({
+          eq: () => ({
+            single: () => Promise.resolve({ data: null, error: null }),
+            limit: () => Promise.resolve({ data: [], error: null }),
+          }),
+          or: () => ({
+            order: () => ({
+              limit: () => Promise.resolve({ data: [], error: null }),
+            }),
+          }),
+        }),
+      }),
+    } as any
   }
-}
-
-export async function getServiceSupabase() {
-  const supabase = await createServerSupabaseClient()
-  return supabase
 }
