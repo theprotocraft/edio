@@ -1,236 +1,51 @@
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import type { Database } from "@/types/supabase"
 
-// Upload a file to S3 via presigned URL
-export async function uploadFile(file: File, projectId: string) {
-  try {
-    const response = await fetch("/api/uploads/presigned-url", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        fileName: file.name,
-        contentType: file.type,
-        projectId,
-      }),
-    })
+// Create a Supabase client
+const getSupabase = () => createClientComponentClient<Database>()
 
-    if (!response.ok) {
-      throw new Error("Failed to get presigned URL")
-    }
-
-    const { url, fields, key } = await response.json()
-
-    const formData = new FormData()
-    Object.entries(fields).forEach(([field, value]) => {
-      formData.append(field, value as string)
-    })
-    formData.append("file", file)
-
-    const uploadResponse = await fetch(url, {
-      method: "POST",
-      body: formData,
-    })
-
-    if (!uploadResponse.ok) {
-      throw new Error("Failed to upload file")
-    }
-
-    return { key, success: true }
-  } catch (error) {
-    console.error("Error uploading file:", error)
-    return { success: false, error }
-  }
-}
-
-// Delete a file from S3
-export async function deleteFile(key: string) {
-  try {
-    const response = await fetch(`/api/uploads/${encodeURIComponent(key)}`, {
-      method: "DELETE",
-    })
-
-    if (!response.ok) {
-      throw new Error("Failed to delete file")
-    }
-
-    return { success: true }
-  } catch (error) {
-    console.error("Error deleting file:", error)
-    return { success: false, error }
-  }
-}
-
-// Mark a project as complete
-export async function completeProject(projectId: string) {
-  const supabase = createClientComponentClient<Database>()
+// Project-related API functions
+export async function getProjects() {
+  const supabase = getSupabase()
 
   try {
-    const { error } = await supabase.from("projects").update({ status: "completed" }).eq("id", projectId)
-
-    if (error) throw error
-
-    return { success: true }
-  } catch (error) {
-    console.error("Error completing project:", error)
-    return { success: false, error }
-  }
-}
-
-// Add a new video version
-export async function addVideoVersion(
-  projectId: string,
-  data: { title: string; s3_key: string; description?: string },
-) {
-  const supabase = createClientComponentClient<Database>()
-
-  try {
-    const { error } = await supabase.from("video_versions").insert({
-      project_id: projectId,
-      title: data.title,
-      s3_key: data.s3_key,
-      description: data.description || null,
-      status: "pending",
-    })
-
-    if (error) throw error
-
-    return { success: true }
-  } catch (error) {
-    console.error("Error adding video version:", error)
-    return { success: false, error }
-  }
-}
-
-// Delete a video version
-export async function deleteVideoVersion(versionId: string) {
-  const supabase = createClientComponentClient<Database>()
-
-  try {
-    const { error } = await supabase.from("video_versions").delete().eq("id", versionId)
-
-    if (error) throw error
-
-    return { success: true }
-  } catch (error) {
-    console.error("Error deleting video version:", error)
-    return { success: false, error }
-  }
-}
-
-// Approve a video version
-export async function approveVersion(versionId: string) {
-  const supabase = createClientComponentClient<Database>()
-
-  try {
-    const { error } = await supabase.from("video_versions").update({ status: "approved" }).eq("id", versionId)
-
-    if (error) throw error
-
-    return { success: true }
-  } catch (error) {
-    console.error("Error approving version:", error)
-    return { success: false, error }
-  }
-}
-
-// Send feedback on a video version
-export async function sendFeedback(versionId: string, feedback: string) {
-  const supabase = createClientComponentClient<Database>()
-
-  try {
-    const { error } = await supabase.from("messages").insert({
-      video_version_id: versionId,
-      content: feedback,
-      type: "feedback",
-    })
-
-    if (error) throw error
-
-    return { success: true }
-  } catch (error) {
-    console.error("Error sending feedback:", error)
-    return { success: false, error }
-  }
-}
-
-// Fetch dashboard data
-export async function fetchDashboardData() {
-  const supabase = createClientComponentClient<Database>()
-
-  try {
+    // Get the current user
     const {
       data: { user },
     } = await supabase.auth.getUser()
 
-    if (!user) throw new Error("User not authenticated")
-
-    // Get projects owned by the user
-    const { data: ownedProjects, error: ownedError } = await supabase
-      .from("projects")
-      .select("*")
-      .eq("owner_id", user.id)
-
-    if (ownedError) throw ownedError
-
-    // Get projects where user is an editor
-    const { data: editableProjects, error: editableError } = await supabase
-      .from("project_editors")
-      .select("project_id, projects(*)")
-      .eq("editor_id", user.id)
-
-    if (editableError) throw editableError
-
-    // Combine and deduplicate projects
-    const editableProjectsData = editableProjects.map((item) => item.projects)
-    const allProjects = [...ownedProjects, ...editableProjectsData]
-    const uniqueProjects = Array.from(new Map(allProjects.map((item) => [item.id, item])).values())
-
-    return {
-      success: true,
-      data: {
-        projects: uniqueProjects,
-        recentActivity: [], // You can implement this based on your needs
-      },
+    if (!user) {
+      throw new Error("User not authenticated")
     }
-  } catch (error) {
-    console.error("Error fetching dashboard data:", error)
-    return { success: false, error }
-  }
-}
-
-// Fetch all projects for a user
-export async function fetchProjects() {
-  const supabase = createClientComponentClient<Database>()
-
-  try {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
-    if (!user) throw new Error("User not authenticated")
 
     // Get projects owned by the user
     const { data: ownedProjects, error: ownedError } = await supabase
       .from("projects")
-      .select("*")
+      .select("*, users!projects_owner_id_fkey(first_name, last_name, avatar_url)")
       .eq("owner_id", user.id)
+      .order("updated_at", { ascending: false })
 
     if (ownedError) throw ownedError
 
-    // Get projects where user is an editor
+    // Get projects where the user is an editor
     const { data: editableProjects, error: editableError } = await supabase
       .from("project_editors")
-      .select("project_id, projects(*)")
+      .select("project_id, projects(*, users!projects_owner_id_fkey(first_name, last_name, avatar_url))")
       .eq("editor_id", user.id)
 
     if (editableError) throw editableError
 
-    // Combine and deduplicate projects
-    const editableProjectsData = editableProjects.map((item) => item.projects)
-    const allProjects = [...ownedProjects, ...editableProjectsData]
-    const uniqueProjects = Array.from(new Map(allProjects.map((item) => [item.id, item])).values())
+    // Combine and format the results
+    const formattedEditableProjects = editableProjects
+      .filter((item) => item.projects) // Filter out any null projects
+      .map((item) => ({
+        ...item.projects,
+      }))
+
+    const allProjects = [...ownedProjects, ...formattedEditableProjects]
+
+    // Remove duplicates (in case user is both owner and editor)
+    const uniqueProjects = Array.from(new Map(allProjects.map((project) => [project.id, project])).values())
 
     return { success: true, data: uniqueProjects }
   } catch (error) {
@@ -239,64 +54,458 @@ export async function fetchProjects() {
   }
 }
 
-// Fetch project details including versions and messages
-export async function fetchProjectDetails(projectId: string) {
-  const supabase = createClientComponentClient<Database>()
+export async function getProject(id: string) {
+  const supabase = getSupabase()
 
   try {
-    // Get project details
+    // Get the current user
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    if (!user) {
+      throw new Error("User not authenticated")
+    }
+
+    // Check if user is the owner
     const { data: project, error: projectError } = await supabase
       .from("projects")
-      .select("*")
-      .eq("id", projectId)
+      .select("*, users!projects_owner_id_fkey(first_name, last_name, avatar_url)")
+      .eq("id", id)
       .single()
 
-    if (projectError) throw projectError
+    if (projectError) {
+      // If not found as owner, check if user is an editor
+      const { data: editorAccess, error: editorError } = await supabase
+        .from("project_editors")
+        .select("project_id, projects(*, users!projects_owner_id_fkey(first_name, last_name, avatar_url))")
+        .eq("project_id", id)
+        .eq("editor_id", user.id)
+        .single()
 
-    // Get video versions
-    const { data: versions, error: versionsError } = await supabase
-      .from("video_versions")
-      .select("*")
-      .eq("project_id", projectId)
-      .order("created_at", { ascending: false })
+      if (editorError) {
+        throw new Error("Project not found or you do not have access")
+      }
 
-    if (versionsError) throw versionsError
-
-    // Get messages
-    const { data: messages, error: messagesError } = await supabase
-      .from("messages")
-      .select("*")
-      .eq("project_id", projectId)
-      .order("created_at", { ascending: true })
-
-    if (messagesError) throw messagesError
-
-    return {
-      success: true,
-      data: {
-        project,
-        versions,
-        messages,
-      },
+      return { success: true, data: editorAccess.projects }
     }
+
+    return { success: true, data: project }
   } catch (error) {
-    console.error("Error fetching project details:", error)
+    console.error("Error fetching project:", error)
     return { success: false, error }
   }
 }
 
-// Fetch a single project
-export async function fetchProject(projectId: string) {
-  const supabase = createClientComponentClient<Database>()
+export async function createProject(projectData: any) {
+  const supabase = getSupabase()
 
   try {
-    const { data, error } = await supabase.from("projects").select("*").eq("id", projectId).single()
+    // Get the current user
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    if (!user) {
+      throw new Error("User not authenticated")
+    }
+
+    // Create the project
+    const { data, error } = await supabase
+      .from("projects")
+      .insert({
+        ...projectData,
+        owner_id: user.id,
+      })
+      .select()
+      .single()
 
     if (error) throw error
 
     return { success: true, data }
   } catch (error) {
-    console.error("Error fetching project:", error)
+    console.error("Error creating project:", error)
+    return { success: false, error }
+  }
+}
+
+export async function updateProject(id: string, projectData: any) {
+  const supabase = getSupabase()
+
+  try {
+    // Get the current user
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    if (!user) {
+      throw new Error("User not authenticated")
+    }
+
+    // Check if user is the owner
+    const { data: project, error: projectError } = await supabase
+      .from("projects")
+      .select("owner_id")
+      .eq("id", id)
+      .single()
+
+    if (projectError) throw projectError
+
+    if (project.owner_id !== user.id) {
+      throw new Error("Only the project owner can update the project")
+    }
+
+    // Update the project
+    const { data, error } = await supabase.from("projects").update(projectData).eq("id", id).select().single()
+
+    if (error) throw error
+
+    return { success: true, data }
+  } catch (error) {
+    console.error("Error updating project:", error)
+    return { success: false, error }
+  }
+}
+
+export async function deleteProject(id: string) {
+  const supabase = getSupabase()
+
+  try {
+    // Get the current user
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    if (!user) {
+      throw new Error("User not authenticated")
+    }
+
+    // Check if user is the owner
+    const { data: project, error: projectError } = await supabase
+      .from("projects")
+      .select("owner_id")
+      .eq("id", id)
+      .single()
+
+    if (projectError) throw projectError
+
+    if (project.owner_id !== user.id) {
+      throw new Error("Only the project owner can delete the project")
+    }
+
+    // Delete the project
+    const { error } = await supabase.from("projects").delete().eq("id", id)
+
+    if (error) throw error
+
+    return { success: true }
+  } catch (error) {
+    console.error("Error deleting project:", error)
+    return { success: false, error }
+  }
+}
+
+// Upload-related API functions
+export async function getProjectUploads(projectId: string) {
+  const supabase = getSupabase()
+
+  try {
+    // Get the current user
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    if (!user) {
+      throw new Error("User not authenticated")
+    }
+
+    // Verify user has access to this project
+    const hasAccess = await verifyProjectAccess(supabase, projectId, user.id)
+
+    if (!hasAccess) {
+      throw new Error("You do not have access to this project")
+    }
+
+    // Get uploads for the project
+    const { data, error } = await supabase
+      .from("uploads")
+      .select("*, users!uploads_uploaded_by_fkey(first_name, last_name, avatar_url)")
+      .eq("project_id", projectId)
+      .order("created_at", { ascending: false })
+
+    if (error) throw error
+
+    return { success: true, data }
+  } catch (error) {
+    console.error("Error fetching project uploads:", error)
+    return { success: false, error }
+  }
+}
+
+export async function updateUploadStatus(uploadId: string, status: string) {
+  const supabase = getSupabase()
+
+  try {
+    // Get the current user
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    if (!user) {
+      throw new Error("User not authenticated")
+    }
+
+    // Update the upload status
+    const { data, error } = await supabase.from("uploads").update({ status }).eq("id", uploadId).select().single()
+
+    if (error) throw error
+
+    return { success: true, data }
+  } catch (error) {
+    console.error("Error updating upload status:", error)
+    return { success: false, error }
+  }
+}
+
+// Video version-related API functions
+export async function getVideoVersions(projectId: string) {
+  const supabase = getSupabase()
+
+  try {
+    // Get the current user
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    if (!user) {
+      throw new Error("User not authenticated")
+    }
+
+    // Verify user has access to this project
+    const hasAccess = await verifyProjectAccess(supabase, projectId, user.id)
+
+    if (!hasAccess) {
+      throw new Error("You do not have access to this project")
+    }
+
+    // Get video versions for the project
+    const { data, error } = await supabase
+      .from("video_versions")
+      .select("*, users!video_versions_created_by_fkey(first_name, last_name, avatar_url)")
+      .eq("project_id", projectId)
+      .order("created_at", { ascending: false })
+
+    if (error) throw error
+
+    return { success: true, data }
+  } catch (error) {
+    console.error("Error fetching video versions:", error)
+    return { success: false, error }
+  }
+}
+
+export async function createVideoVersion(versionData: any) {
+  const supabase = getSupabase()
+
+  try {
+    // Get the current user
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    if (!user) {
+      throw new Error("User not authenticated")
+    }
+
+    // Verify user has access to this project
+    const hasAccess = await verifyProjectAccess(supabase, versionData.project_id, user.id)
+
+    if (!hasAccess) {
+      throw new Error("You do not have access to this project")
+    }
+
+    // Create the video version
+    const { data, error } = await supabase
+      .from("video_versions")
+      .insert({
+        ...versionData,
+        created_by: user.id,
+      })
+      .select()
+      .single()
+
+    if (error) throw error
+
+    return { success: true, data }
+  } catch (error) {
+    console.error("Error creating video version:", error)
+    return { success: false, error }
+  }
+}
+
+// Message-related API functions
+export async function getProjectMessages(projectId: string) {
+  const supabase = getSupabase()
+
+  try {
+    // Get the current user
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    if (!user) {
+      throw new Error("User not authenticated")
+    }
+
+    // Verify user has access to this project
+    const hasAccess = await verifyProjectAccess(supabase, projectId, user.id)
+
+    if (!hasAccess) {
+      throw new Error("You do not have access to this project")
+    }
+
+    // Get messages for the project
+    const { data, error } = await supabase
+      .from("messages")
+      .select("*, users!messages_user_id_fkey(first_name, last_name, avatar_url)")
+      .eq("project_id", projectId)
+      .order("created_at", { ascending: true })
+
+    if (error) throw error
+
+    return { success: true, data }
+  } catch (error) {
+    console.error("Error fetching project messages:", error)
+    return { success: false, error }
+  }
+}
+
+export async function sendMessage(projectId: string, content: string) {
+  const supabase = getSupabase()
+
+  try {
+    // Get the current user
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    if (!user) {
+      throw new Error("User not authenticated")
+    }
+
+    // Verify user has access to this project
+    const hasAccess = await verifyProjectAccess(supabase, projectId, user.id)
+
+    if (!hasAccess) {
+      throw new Error("You do not have access to this project")
+    }
+
+    // Send the message
+    const { data, error } = await supabase
+      .from("messages")
+      .insert({
+        project_id: projectId,
+        user_id: user.id,
+        content,
+      })
+      .select("*, users!messages_user_id_fkey(first_name, last_name, avatar_url)")
+      .single()
+
+    if (error) throw error
+
+    return { success: true, data }
+  } catch (error) {
+    console.error("Error sending message:", error)
+    return { success: false, error }
+  }
+}
+
+// Helper function to verify project access
+async function verifyProjectAccess(supabase: any, projectId: string, userId: string) {
+  try {
+    // Check if user is the owner
+    const { data: ownedProject } = await supabase
+      .from("projects")
+      .select("id")
+      .eq("id", projectId)
+      .eq("owner_id", userId)
+      .single()
+
+    if (ownedProject) {
+      return true
+    }
+
+    // Check if user is an editor
+    const { data: editorAccess } = await supabase
+      .from("project_editors")
+      .select("project_id")
+      .eq("project_id", projectId)
+      .eq("editor_id", userId)
+      .single()
+
+    return !!editorAccess
+  } catch (error) {
+    return false
+  }
+}
+
+// Notification-related API functions
+export async function getNotifications() {
+  const supabase = getSupabase()
+
+  try {
+    // Get the current user
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    if (!user) {
+      throw new Error("User not authenticated")
+    }
+
+    // Get notifications for the user
+    const { data, error } = await supabase
+      .from("notifications")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+
+    if (error) throw error
+
+    return { success: true, data }
+  } catch (error) {
+    console.error("Error fetching notifications:", error)
+    return { success: false, error }
+  }
+}
+
+export async function markNotificationAsRead(notificationId: string) {
+  const supabase = getSupabase()
+
+  try {
+    // Get the current user
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    if (!user) {
+      throw new Error("User not authenticated")
+    }
+
+    // Update the notification
+    const { data, error } = await supabase
+      .from("notifications")
+      .update({ read: true })
+      .eq("id", notificationId)
+      .eq("user_id", user.id) // Ensure the notification belongs to the user
+      .select()
+      .single()
+
+    if (error) throw error
+
+    return { success: true, data }
+  } catch (error) {
+    console.error("Error marking notification as read:", error)
     return { success: false, error }
   }
 }
