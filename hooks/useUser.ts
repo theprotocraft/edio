@@ -2,41 +2,42 @@
 
 import { useEffect, useState } from "react"
 import { useSupabase } from "@/lib/supabase-provider"
+import type { User } from "@supabase/supabase-js"
 
 export function useUser() {
-  const { supabase, user } = useSupabase()
-  const [userData, setUserData] = useState<any | null>(null)
+  const supabase = useSupabase()
+  const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const fetchUserData = async () => {
-      if (!user) {
-        setUserData(null)
-        setLoading(false)
-        return
-      }
-
+    const getUser = async () => {
       try {
-        const { data, error } = await supabase.from("users").select("*").eq("id", user.id).single()
-
-        if (error) {
-          console.error("Error fetching user data:", error)
-          setUserData(null)
-        } else {
-          setUserData(data)
-        }
+        const {
+          data: { user },
+        } = await supabase.auth.getUser()
+        setUser(user)
       } catch (error) {
-        console.error("Error in useUser hook:", error)
-        setUserData(null)
+        console.error("Error loading user:", error)
       } finally {
         setLoading(false)
       }
     }
 
-    fetchUserData()
-  }, [supabase, user])
+    getUser()
 
-  return { user: userData, loading }
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      setUser(session?.user ?? null)
+      setLoading(false)
+    })
+
+    return () => {
+      subscription.unsubscribe()
+    }
+  }, [supabase])
+
+  return { user, loading }
 }
 
 // Re-export useSupabase for convenience

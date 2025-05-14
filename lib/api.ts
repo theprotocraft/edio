@@ -1,15 +1,9 @@
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import type { Database } from "@/types/supabase"
 
-// Create a Supabase client
-const createClient = () => createClientComponentClient<Database>()
-
 // Upload a file to S3 via presigned URL
 export async function uploadFile(file: File, projectId: string) {
   try {
-    const supabase = createClient()
-
-    // Get presigned URL
     const response = await fetch("/api/uploads/presigned-url", {
       method: "POST",
       headers: {
@@ -28,36 +22,22 @@ export async function uploadFile(file: File, projectId: string) {
 
     const { url, fields, key } = await response.json()
 
-    // Create form data for S3 upload
     const formData = new FormData()
-    Object.entries(fields).forEach(([key, value]) => {
-      formData.append(key, value as string)
+    Object.entries(fields).forEach(([field, value]) => {
+      formData.append(field, value as string)
     })
     formData.append("file", file)
 
-    // Upload to S3
     const uploadResponse = await fetch(url, {
       method: "POST",
       body: formData,
     })
 
     if (!uploadResponse.ok) {
-      throw new Error("Failed to upload file to S3")
+      throw new Error("Failed to upload file")
     }
 
-    // Record the upload in the database
-    const { error } = await supabase.from("uploads").insert({
-      project_id: projectId,
-      file_name: file.name,
-      file_type: file.type,
-      file_size: file.size,
-      s3_key: key,
-      uploaded_by: (await supabase.auth.getUser()).data.user?.id,
-    })
-
-    if (error) throw error
-
-    return { success: true, key }
+    return { key, success: true }
   } catch (error) {
     console.error("Error uploading file:", error)
     return { success: false, error }
@@ -65,28 +45,15 @@ export async function uploadFile(file: File, projectId: string) {
 }
 
 // Delete a file from S3
-export async function deleteFile(fileId: string) {
+export async function deleteFile(key: string) {
   try {
-    const supabase = createClient()
-
-    // Get the file details
-    const { data: file, error: fetchError } = await supabase.from("uploads").select("*").eq("id", fileId).single()
-
-    if (fetchError) throw fetchError
-
-    // Delete from S3 via API
-    const response = await fetch(`/api/uploads/${file.s3_key}`, {
+    const response = await fetch(`/api/uploads/${encodeURIComponent(key)}`, {
       method: "DELETE",
     })
 
     if (!response.ok) {
-      throw new Error("Failed to delete file from S3")
+      throw new Error("Failed to delete file")
     }
-
-    // Delete from database
-    const { error } = await supabase.from("uploads").delete().eq("id", fileId)
-
-    if (error) throw error
 
     return { success: true }
   } catch (error) {
@@ -97,13 +64,10 @@ export async function deleteFile(fileId: string) {
 
 // Mark a project as complete
 export async function completeProject(projectId: string) {
-  try {
-    const supabase = createClient()
+  const supabase = createClientComponentClient<Database>()
 
-    const { error } = await supabase
-      .from("projects")
-      .update({ status: "completed", completed_at: new Date().toISOString() })
-      .eq("id", projectId)
+  try {
+    const { error } = await supabase.from("projects").update({ status: "completed" }).eq("id", projectId)
 
     if (error) throw error
 
@@ -115,24 +79,24 @@ export async function completeProject(projectId: string) {
 }
 
 // Add a new video version
-export async function addVideoVersion(projectId: string, versionData: any) {
-  try {
-    const supabase = createClient()
+export async function addVideoVersion(
+  projectId: string,
+  data: { title: string; s3_key: string; description?: string },
+) {
+  const supabase = createClientComponentClient<Database>()
 
-    const { data, error } = await supabase
-      .from("video_versions")
-      .insert({
-        project_id: projectId,
-        version_number: versionData.versionNumber,
-        s3_key: versionData.s3Key,
-        notes: versionData.notes,
-        created_by: (await supabase.auth.getUser()).data.user?.id,
-      })
-      .select()
+  try {
+    const { error } = await supabase.from("video_versions").insert({
+      project_id: projectId,
+      title: data.title,
+      s3_key: data.s3_key,
+      description: data.description || null,
+      status: "pending",
+    })
 
     if (error) throw error
 
-    return { success: true, data }
+    return { success: true }
   } catch (error) {
     console.error("Error adding video version:", error)
     return { success: false, error }
@@ -141,9 +105,9 @@ export async function addVideoVersion(projectId: string, versionData: any) {
 
 // Delete a video version
 export async function deleteVideoVersion(versionId: string) {
-  try {
-    const supabase = createClient()
+  const supabase = createClientComponentClient<Database>()
 
+  try {
     const { error } = await supabase.from("video_versions").delete().eq("id", versionId)
 
     if (error) throw error
@@ -157,13 +121,10 @@ export async function deleteVideoVersion(versionId: string) {
 
 // Approve a video version
 export async function approveVersion(versionId: string) {
-  try {
-    const supabase = createClient()
+  const supabase = createClientComponentClient<Database>()
 
-    const { error } = await supabase
-      .from("video_versions")
-      .update({ status: "approved", approved_at: new Date().toISOString() })
-      .eq("id", versionId)
+  try {
+    const { error } = await supabase.from("video_versions").update({ status: "approved" }).eq("id", versionId)
 
     if (error) throw error
 
@@ -176,21 +137,18 @@ export async function approveVersion(versionId: string) {
 
 // Send feedback on a video version
 export async function sendFeedback(versionId: string, feedback: string) {
-  try {
-    const supabase = createClient()
+  const supabase = createClientComponentClient<Database>()
 
-    const { data, error } = await supabase
-      .from("messages")
-      .insert({
-        video_version_id: versionId,
-        content: feedback,
-        sent_by: (await supabase.auth.getUser()).data.user?.id,
-      })
-      .select()
+  try {
+    const { error } = await supabase.from("messages").insert({
+      video_version_id: versionId,
+      content: feedback,
+      type: "feedback",
+    })
 
     if (error) throw error
 
-    return { success: true, data }
+    return { success: true }
   } catch (error) {
     console.error("Error sending feedback:", error)
     return { success: false, error }
@@ -199,64 +157,41 @@ export async function sendFeedback(versionId: string, feedback: string) {
 
 // Fetch dashboard data
 export async function fetchDashboardData() {
+  const supabase = createClientComponentClient<Database>()
+
   try {
-    const supabase = createClient()
-    const user = (await supabase.auth.getUser()).data.user
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
 
     if (!user) throw new Error("User not authenticated")
 
-    // Get recent projects
-    const { data: recentProjects, error: projectsError } = await supabase
+    // Get projects owned by the user
+    const { data: ownedProjects, error: ownedError } = await supabase
       .from("projects")
       .select("*")
-      .or(`owner_id.eq.${user.id}`)
-      .order("updated_at", { ascending: false })
-      .limit(5)
+      .eq("owner_id", user.id)
 
-    if (projectsError) throw projectsError
-
-    // Get recent notifications
-    const { data: notifications, error: notificationsError } = await supabase
-      .from("notifications")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false })
-      .limit(10)
-
-    if (notificationsError) throw notificationsError
+    if (ownedError) throw ownedError
 
     // Get projects where user is an editor
     const { data: editableProjects, error: editableError } = await supabase
       .from("project_editors")
-      .select("project_id")
+      .select("project_id, projects(*)")
       .eq("editor_id", user.id)
 
     if (editableError) throw editableError
 
-    // Get the actual projects
-    let editorProjects = []
-    if (editableProjects && editableProjects.length > 0) {
-      const projectIds = editableProjects.map((p) => p.project_id)
-      const { data, error } = await supabase
-        .from("projects")
-        .select("*")
-        .in("id", projectIds)
-        .order("updated_at", { ascending: false })
-        .limit(5)
-
-      if (error) throw error
-      editorProjects = data
-    }
-
     // Combine and deduplicate projects
-    const allProjects = [...recentProjects, ...editorProjects]
+    const editableProjectsData = editableProjects.map((item) => item.projects)
+    const allProjects = [...ownedProjects, ...editableProjectsData]
     const uniqueProjects = Array.from(new Map(allProjects.map((item) => [item.id, item])).values())
 
     return {
       success: true,
       data: {
         projects: uniqueProjects,
-        notifications,
+        recentActivity: [], // You can implement this based on your needs
       },
     }
   } catch (error) {
@@ -265,65 +200,51 @@ export async function fetchDashboardData() {
   }
 }
 
-// Fetch projects
+// Fetch all projects for a user
 export async function fetchProjects() {
+  const supabase = createClientComponentClient<Database>()
+
   try {
-    const supabase = createClient()
-    const user = (await supabase.auth.getUser()).data.user
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
 
     if (!user) throw new Error("User not authenticated")
 
-    // Get owned projects
+    // Get projects owned by the user
     const { data: ownedProjects, error: ownedError } = await supabase
       .from("projects")
       .select("*")
       .eq("owner_id", user.id)
-      .order("updated_at", { ascending: false })
 
     if (ownedError) throw ownedError
 
     // Get projects where user is an editor
     const { data: editableProjects, error: editableError } = await supabase
       .from("project_editors")
-      .select("project_id")
+      .select("project_id, projects(*)")
       .eq("editor_id", user.id)
 
     if (editableError) throw editableError
 
-    // Get the actual projects
-    let editorProjects = []
-    if (editableProjects && editableProjects.length > 0) {
-      const projectIds = editableProjects.map((p) => p.project_id)
-      const { data, error } = await supabase
-        .from("projects")
-        .select("*")
-        .in("id", projectIds)
-        .order("updated_at", { ascending: false })
-
-      if (error) throw error
-      editorProjects = data
-    }
-
     // Combine and deduplicate projects
-    const allProjects = [...ownedProjects, ...editorProjects]
+    const editableProjectsData = editableProjects.map((item) => item.projects)
+    const allProjects = [...ownedProjects, ...editableProjectsData]
     const uniqueProjects = Array.from(new Map(allProjects.map((item) => [item.id, item])).values())
 
-    return {
-      success: true,
-      data: uniqueProjects,
-    }
+    return { success: true, data: uniqueProjects }
   } catch (error) {
     console.error("Error fetching projects:", error)
     return { success: false, error }
   }
 }
 
-// Fetch project details
+// Fetch project details including versions and messages
 export async function fetchProjectDetails(projectId: string) {
-  try {
-    const supabase = createClient()
+  const supabase = createClientComponentClient<Database>()
 
-    // Get project
+  try {
+    // Get project details
     const { data: project, error: projectError } = await supabase
       .from("projects")
       .select("*")
@@ -341,50 +262,21 @@ export async function fetchProjectDetails(projectId: string) {
 
     if (versionsError) throw versionsError
 
-    // Get uploads
-    const { data: uploads, error: uploadsError } = await supabase
-      .from("uploads")
+    // Get messages
+    const { data: messages, error: messagesError } = await supabase
+      .from("messages")
       .select("*")
       .eq("project_id", projectId)
-      .order("created_at", { ascending: false })
+      .order("created_at", { ascending: true })
 
-    if (uploadsError) throw uploadsError
-
-    // Get editors
-    const { data: editors, error: editorsError } = await supabase
-      .from("project_editors")
-      .select("editor_id")
-      .eq("project_id", projectId)
-
-    if (editorsError) throw editorsError
-
-    // Get editor user details
-    let editorUsers = []
-    if (editors && editors.length > 0) {
-      const editorIds = editors.map((e) => e.editor_id)
-      const { data, error } = await supabase.from("users").select("id, full_name, avatar_url").in("id", editorIds)
-
-      if (error) throw error
-      editorUsers = data
-    }
-
-    // Get owner details
-    const { data: owner, error: ownerError } = await supabase
-      .from("users")
-      .select("id, full_name, avatar_url")
-      .eq("id", project.owner_id)
-      .single()
-
-    if (ownerError) throw ownerError
+    if (messagesError) throw messagesError
 
     return {
       success: true,
       data: {
         project,
         versions,
-        uploads,
-        editors: editorUsers,
-        owner,
+        messages,
       },
     }
   } catch (error) {
@@ -395,17 +287,14 @@ export async function fetchProjectDetails(projectId: string) {
 
 // Fetch a single project
 export async function fetchProject(projectId: string) {
-  try {
-    const supabase = createClient()
+  const supabase = createClientComponentClient<Database>()
 
+  try {
     const { data, error } = await supabase.from("projects").select("*").eq("id", projectId).single()
 
     if (error) throw error
 
-    return {
-      success: true,
-      data,
-    }
+    return { success: true, data }
   } catch (error) {
     console.error("Error fetching project:", error)
     return { success: false, error }
