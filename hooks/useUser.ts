@@ -1,20 +1,43 @@
 "use client"
 
-import { useSupabase as useSupabaseProvider } from "@/lib/supabase-provider"
-import type { User } from "@supabase/auth-helpers-nextjs"
+import { useEffect, useState } from "react"
+import { useSupabase } from "@/lib/supabase-provider"
 
-export function useSupabase() {
-  // Call the hook at the top level
-  const supabaseContext = useSupabaseProvider()
-  const user: User | null = supabaseContext.user
-  const loading = supabaseContext.loading
-  const error: Error | null = supabaseContext.error
+export function useUser() {
+  const { supabase, user } = useSupabase()
+  const [userData, setUserData] = useState<any | null>(null)
+  const [loading, setLoading] = useState(true)
 
-  return {
-    ...supabaseContext,
-    user,
-    loading,
-    error,
-    isAuthenticated: !!user,
-  }
+  useEffect(() => {
+    const fetchUserData = async () => {
+      if (!user) {
+        setUserData(null)
+        setLoading(false)
+        return
+      }
+
+      try {
+        const { data, error } = await supabase.from("users").select("*").eq("id", user.id).single()
+
+        if (error) {
+          console.error("Error fetching user data:", error)
+          setUserData(null)
+        } else {
+          setUserData(data)
+        }
+      } catch (error) {
+        console.error("Error in useUser hook:", error)
+        setUserData(null)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchUserData()
+  }, [supabase, user])
+
+  return { user: userData, loading }
 }
+
+// Re-export useSupabase for convenience
+export { useSupabase } from "@/lib/supabase-provider"

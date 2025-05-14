@@ -1,81 +1,67 @@
 export type Database = {
   public: {
     Tables: {
-      users: {
-        Row: {
-          id: string
-          name: string | null
-          email: string | null
-          role: "youtuber" | "editor"
-          created_at: string
-        }
-        Insert: {
-          id: string
-          name?: string | null
-          email?: string | null
-          role: "youtuber" | "editor"
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          name?: string | null
-          email?: string | null
-          role?: "youtuber" | "editor"
-          created_at?: string
-        }
-      }
       projects: {
         Row: {
           id: string
           owner_id: string
-          project_title: string
-          video_title: string | null
-          description: string | null
-          thumbnail_url: string | null
-          status: "pending" | "in_review" | "needs_changes" | "approved"
+          name: string
+          description: string
           created_at: string
           updated_at: string
+          status: string
+          completed_at: string | null
         }
         Insert: {
           id?: string
           owner_id: string
-          project_title: string
-          video_title?: string | null
-          description?: string | null
-          thumbnail_url?: string | null
-          status?: "pending" | "in_review" | "needs_changes" | "approved"
+          name: string
+          description: string
           created_at?: string
           updated_at?: string
+          status?: string
+          completed_at?: string | null
         }
         Update: {
           id?: string
           owner_id?: string
-          project_title?: string
-          video_title?: string | null
-          description?: string | null
-          thumbnail_url?: string | null
-          status?: "pending" | "in_review" | "needs_changes" | "approved"
+          name?: string
+          description?: string
           created_at?: string
           updated_at?: string
+          status?: string
+          completed_at?: string | null
         }
       }
-      project_editors: {
+      uploads: {
         Row: {
           id: string
           project_id: string
-          editor_id: string
+          file_name: string
+          file_type: string
+          file_size: number
+          s3_key: string
+          uploaded_by: string
           created_at: string
         }
         Insert: {
           id?: string
           project_id: string
-          editor_id: string
+          file_name: string
+          file_type: string
+          file_size: number
+          s3_key: string
+          uploaded_by: string
           created_at?: string
         }
         Update: {
           id?: string
           project_id?: string
-          editor_id?: string
+          file_name?: string
+          file_type?: string
+          file_size?: number
+          s3_key?: string
+          uploaded_by?: string
           created_at?: string
         }
       }
@@ -83,90 +69,49 @@ export type Database = {
         Row: {
           id: string
           project_id: string
-          uploader_id: string
           version_number: number
-          file_url: string
-          preview_url: string | null
+          s3_key: string
           notes: string | null
+          created_by: string
           created_at: string
+          status: string | null
+          approved_at: string | null
         }
         Insert: {
           id?: string
           project_id: string
-          uploader_id: string
           version_number: number
-          file_url: string
-          preview_url?: string | null
-          notes?: string | null
+          s3_key: string
+          notes: string | null
+          created_by: string
           created_at?: string
+          status?: string | null
+          approved_at?: string | null
         }
         Update: {
           id?: string
           project_id?: string
-          uploader_id?: string
           version_number?: number
-          file_url?: string
-          preview_url?: string | null
+          s3_key?: string
           notes?: string | null
+          created_by?: string
           created_at?: string
+          status?: string | null
+          approved_at?: string | null
         }
       }
-      uploads: {
+      project_editors: {
         Row: {
-          id: string
           project_id: string
-          user_id: string
-          file_url: string
-          file_type: "video" | "thumbnail" | "audio" | "document" | "other"
-          file_name: string
-          file_size: number
-          created_at: string
+          editor_id: string
         }
         Insert: {
-          id?: string
           project_id: string
-          user_id: string
-          file_url: string
-          file_type: "video" | "thumbnail" | "audio" | "document" | "other"
-          file_name: string
-          file_size: number
-          created_at?: string
+          editor_id: string
         }
         Update: {
-          id?: string
           project_id?: string
-          user_id?: string
-          file_url?: string
-          file_type?: "video" | "thumbnail" | "audio" | "document" | "other"
-          file_name?: string
-          file_size?: number
-          created_at?: string
-        }
-      }
-      messages: {
-        Row: {
-          id: string
-          project_id: string
-          sender_id: string
-          content: string
-          type: "text" | "system" | "feedback"
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          project_id: string
-          sender_id: string
-          content: string
-          type?: "text" | "system" | "feedback"
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          project_id?: string
-          sender_id?: string
-          content?: string
-          type?: "text" | "system" | "feedback"
-          created_at?: string
+          editor_id?: string
         }
       }
       notifications: {
@@ -174,30 +119,73 @@ export type Database = {
           id: string
           user_id: string
           message: string
-          type: "info" | "action" | "warning" | "success"
-          read: boolean
-          project_id: string | null
           created_at: string
         }
         Insert: {
           id?: string
           user_id: string
           message: string
-          type?: "info" | "action" | "warning" | "success"
-          read?: boolean
-          project_id?: string | null
           created_at?: string
         }
         Update: {
           id?: string
           user_id?: string
           message?: string
-          type?: "info" | "action" | "warning" | "success"
-          read?: boolean
-          project_id?: string | null
           created_at?: string
         }
       }
+      messages: {
+        Row: {
+          id: string
+          video_version_id: string
+          content: string
+          sent_by: string
+          sent_at: string
+        }
+        Insert: {
+          id?: string
+          video_version_id: string
+          content: string
+          sent_by: string
+          sent_at?: string
+        }
+        Update: {
+          id?: string
+          video_version_id?: string
+          content?: string
+          sent_by?: string
+          sent_at?: string
+        }
+      }
+      users: {
+        Row: {
+          id: string
+          full_name: string
+          avatar_url: string
+        }
+        Insert: {
+          id: string
+          full_name: string
+          avatar_url: string
+        }
+        Update: {
+          id?: string
+          full_name?: string
+          avatar_url?: string
+        }
+      }
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      [_ in never]: never
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
     }
   }
 }
