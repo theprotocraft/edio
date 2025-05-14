@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
     }
 
     try {
-      // Check if user profile exists
+      // Check if user exists
       const { data: user } = await supabase.from("users").select().eq("id", data.user.id).single()
 
       // If user doesn't exist, create it
@@ -36,12 +36,12 @@ export async function GET(request: NextRequest) {
         })
 
         if (insertError) {
-          console.error("Error creating user profile:", insertError)
+          console.error("Error creating user:", insertError)
         }
       }
     } catch (profileError) {
-      console.error("Error handling user profile:", profileError)
-      // Continue even if profile creation fails
+      console.error("Error handling user:", profileError)
+      // Continue even if user creation fails
     }
 
     // URL to redirect to after sign in process completes

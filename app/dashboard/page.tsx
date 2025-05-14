@@ -10,23 +10,21 @@ export default async function DashboardPage() {
   // Initialize Supabase client
   const supabase = createServerClient()
 
-  // Get session
+  // Get user
   try {
-    const { data: sessionData } = await supabase.auth.getSession()
+    const { data: userData, error: userError } = await supabase.auth.getUser()
 
     // Check if user is authenticated
-    if (!sessionData.session) {
+    if (userError || !userData.user) {
       redirect("/login")
     }
+
+    const userId = userData.user.id
 
     // Safely fetch user profile
     let user = null
     try {
-      const { data: userData, error: userError } = await supabase
-        .from("users")
-        .select("*")
-        .eq("id", sessionData.session.user.id)
-        .single()
+      const { data: userData, error: userError } = await supabase.from("users").select("*").eq("id", userId).single()
 
       if (userError) {
         console.error("User fetch error:", userError)
@@ -37,25 +35,51 @@ export default async function DashboardPage() {
       console.error("Error fetching user:", error)
     }
 
-    // Fetch recent projects - handle potential errors
+    // Fetch projects - handle potential errors and fix .or() logic
     let projects = []
     try {
-      const { data, error } = await supabase
+      // First, get projects where user is owner
+      const { data: ownerProjects, error: ownerError } = await supabase
         .from("projects")
         .select(`
           *,
-          owner:users!projects_owner_id_fkey(id, name, email),
-          editors:project_editors(editor_id, editor:users(id, name, email))
+          owner:users!projects_owner_id_fkey(id, name, email)
         `)
-        .or(`owner_id.eq.${sessionData.session.user.id},project_editors.editor_id.eq.${sessionData.session.user.id}`)
+        .eq("owner_id", userId)
         .order("updated_at", { ascending: false })
-        .limit(4)
 
-      if (error) {
-        console.error("Projects fetch error:", error)
-      } else {
-        projects = data || []
+      if (ownerError) {
+        console.error("Owner projects fetch error:", ownerError)
       }
+
+      // Then, get projects where user is editor
+      const { data: editorData, error: editorError } = await supabase
+        .from("project_editors")
+        .select(`
+          project_id,
+          project:projects(
+            *,
+            owner:users!projects_owner_id_fkey(id, name, email)
+          )
+        `)
+        .eq("editor_id", userId)
+        .order("project(updated_at)", { ascending: false })
+
+      if (editorError) {
+        console.error("Editor projects fetch error:", editorError)
+      }
+
+      // Combine and deduplicate results
+      const editorProjects = editorData?.map((item) => item.project) || []
+      const allProjects = [...(ownerProjects || []), ...(editorProjects || [])]
+
+      // Remove duplicates by project ID
+      const uniqueProjects = Array.from(new Map(allProjects.map((project) => [project.id, project])).values())
+
+      // Sort by updated_at
+      projects = uniqueProjects
+        .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
+        .slice(0, 4) // Limit to 4 projects
     } catch (error) {
       console.error("Error fetching projects:", error)
     }
@@ -66,7 +90,7 @@ export default async function DashboardPage() {
       const { data, error } = await supabase
         .from("notifications")
         .select("*")
-        .eq("user_id", sessionData.session.user.id)
+        .eq("user_id", userId)
         .order("created_at", { ascending: false })
         .limit(5)
 

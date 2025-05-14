@@ -15,13 +15,14 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
     const { id } = params
     const supabase = createServerClient()
 
-    const {
-      data: { session },
-    } = await supabase.auth.getSession()
+    // Get user with getUser() for security
+    const { data: userData, error: userError } = await supabase.auth.getUser()
 
-    if (!session) {
+    if (userError || !userData.user) {
       redirect("/login")
     }
+
+    const userId = userData.user.id
 
     // Fetch project details
     let project = null
@@ -30,8 +31,7 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
         .from("projects")
         .select(`
           *,
-          owner:users!projects_owner_id_fkey(id, name, email),
-          editors:project_editors(editor_id, editor:users(id, name, email))
+          owner:users!projects_owner_id_fkey(id, name, email)
         `)
         .eq("id", id)
         .single()
@@ -51,9 +51,29 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
       notFound()
     }
 
+    // Fetch project editors
+    try {
+      const { data: editorsData, error: editorsError } = await supabase
+        .from("project_editors")
+        .select(`
+          editor_id,
+          editor:users(id, name, email)
+        `)
+        .eq("project_id", id)
+
+      if (!editorsError && editorsData) {
+        project.editors = editorsData
+      } else {
+        project.editors = []
+      }
+    } catch (error) {
+      console.error("Error fetching project editors:", error)
+      project.editors = []
+    }
+
     // Check if user has access to this project
-    const userIsOwner = project.owner_id === session.user.id
-    const userIsEditor = project.editors.some((editor) => editor.editor_id === session.user.id)
+    const userIsOwner = project.owner_id === userId
+    const userIsEditor = project.editors.some((editor) => editor.editor_id === userId)
 
     if (!userIsOwner && !userIsEditor) {
       redirect("/dashboard")
@@ -62,7 +82,7 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
     // Fetch user profile
     let user = null
     try {
-      const { data, error } = await supabase.from("users").select("*").eq("id", session.user.id).single()
+      const { data, error } = await supabase.from("users").select("*").eq("id", userId).single()
 
       if (error) {
         console.error("User fetch error:", error)
@@ -139,7 +159,7 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
           versions={versions || []}
           messages={messages || []}
           userRole={userIsOwner ? "creator" : "editor"}
-          userId={session.user.id}
+          userId={userId}
         />
       </DashboardLayout>
     )

@@ -1,104 +1,108 @@
-"use client"
-
-import type React from "react"
-import { createContext, useContext, useEffect, useState } from "react"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
-import type { SupabaseClient } from "@supabase/supabase-js"
-import type { User } from "@supabase/auth-helpers-nextjs"
-import { useRouter } from "next/navigation"
 import type { Database } from "@/types/supabase"
 
-type SupabaseContext = {
-  supabase: SupabaseClient<Database>
-  user: User | null
-  loading: boolean
-  error: Error | null
-}
+export async function signUp(email: string, password: string, firstName: string, lastName: string) {
+  const supabase = createClientComponentClient<Database>()
 
-const Context = createContext<SupabaseContext | undefined>(undefined)
+  try {
+    // Create the user in Auth
+    const { data: authData, error: authError } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          first_name: firstName,
+          last_name: lastName,
+        },
+      },
+    })
 
-export function SupabaseProvider({
-  children,
-}: {
-  children: React.ReactNode
-}) {
-  const [user, setUser] = useState<User | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<Error | null>(null)
-  const [supabase, setSupabase] = useState<SupabaseClient<Database> | null>(null)
-  const router = useRouter()
+    if (authError) throw authError
 
-  useEffect(() => {
-    try {
-      const supabaseClient = createClientComponentClient<Database>({
-        supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
-        supabaseKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-      })
-      setSupabase(supabaseClient)
+    // If auth signup was successful and we have a user, create a record in the users table
+    if (authData.user) {
+      const { error: profileError } = await supabase
+        .from("users") // Changed from 'profiles' to 'users'
+        .insert({
+          id: authData.user.id,
+          first_name: firstName,
+          last_name: lastName,
+          email: email,
+        })
 
-      const {
-        data: { subscription },
-      } = supabaseClient.auth.onAuthStateChange((event, session) => {
-        if (session) {
-          setUser(session.user)
-        } else {
-          setUser(null)
-        }
-        setLoading(false)
-        router.refresh()
-      })
-
-      const getUser = async () => {
-        try {
-          const { data } = await supabaseClient.auth.getSession()
-          if (data.session) {
-            setUser(data.session.user)
-          }
-        } catch (err) {
-          console.error("Error getting session:", err)
-          setError(err instanceof Error ? err : new Error(String(err)))
-        } finally {
-          setLoading(false)
-        }
-      }
-
-      getUser()
-
-      return () => {
-        subscription.unsubscribe()
-      }
-    } catch (err) {
-      console.error("Error initializing Supabase client:", err)
-      setError(err instanceof Error ? err : new Error(String(err)))
-      setLoading(false)
+      if (profileError) throw profileError
     }
-  }, [router])
 
-  // If there's an error with Supabase initialization and we're on a protected route, redirect
-  useEffect(() => {
-    if (error && window.location.pathname.match(/^\/dashboard|^\/projects|^\/auth/)) {
-      router.push("/setup-required")
-    }
-  }, [error, router])
-
-  return (
-    <Context.Provider
-      value={{
-        supabase: supabase as SupabaseClient<Database>,
-        user,
-        loading,
-        error,
-      }}
-    >
-      {children}
-    </Context.Provider>
-  )
-}
-
-export const useSupabase = () => {
-  const context = useContext(Context)
-  if (context === undefined) {
-    throw new Error("useSupabase must be used inside SupabaseProvider")
+    return { success: true, user: authData.user }
+  } catch (error) {
+    console.error("Error during sign up:", error)
+    return { success: false, error }
   }
-  return context
+}
+
+export async function signIn(email: string, password: string) {
+  const supabase = createClientComponentClient<Database>()
+
+  try {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    })
+
+    if (error) throw error
+
+    return { success: true, user: data.user, session: data.session }
+  } catch (error) {
+    console.error("Error during sign in:", error)
+    return { success: false, error }
+  }
+}
+
+export async function signOut() {
+  const supabase = createClientComponentClient<Database>()
+
+  try {
+    const { error } = await supabase.auth.signOut()
+
+    if (error) throw error
+
+    return { success: true }
+  } catch (error) {
+    console.error("Error during sign out:", error)
+    return { success: false, error }
+  }
+}
+
+export async function resetPassword(email: string) {
+  const supabase = createClientComponentClient<Database>()
+
+  try {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    })
+
+    if (error) throw error
+
+    return { success: true }
+  } catch (error) {
+    console.error("Error during password reset:", error)
+    return { success: false, error }
+  }
+}
+
+export async function updatePassword(password: string) {
+  const supabase = createClientComponentClient<Database>()
+
+  try {
+    const { error } = await supabase.auth.updateUser({
+      password,
+    })
+
+    if (error) throw error
+
+    return { success: true }
+  } catch (error) {
+    console.error("Error updating password:", error)
+    return { success: false, error }
+  }
 }

@@ -34,12 +34,12 @@ export default function EditProjectPage({ params }: EditProjectPageProps) {
       if (!user) return
 
       try {
+        // First fetch the project
         const { data: project, error } = await supabase
           .from("projects")
           .select(`
             *,
-            owner:users!projects_owner_id_fkey(id),
-            editors:project_editors(editor_id)
+            owner_id
           `)
           .eq("id", id)
           .single()
@@ -53,9 +53,16 @@ export default function EditProjectPage({ params }: EditProjectPageProps) {
           return
         }
 
+        // Then check if user is an editor
+        const { data: editorData, error: editorError } = await supabase
+          .from("project_editors")
+          .select("editor_id")
+          .eq("project_id", id)
+          .eq("editor_id", user.id)
+
         // Check if user has access to this project
         const userIsOwner = project.owner_id === user.id
-        const userIsEditor = project.editors.some((editor) => editor.editor_id === user.id)
+        const userIsEditor = editorData && editorData.length > 0
 
         if (!userIsOwner && !userIsEditor) {
           router.push("/projects")

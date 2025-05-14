@@ -1,88 +1,39 @@
 "use client"
 
 import type React from "react"
+
 import { createContext, useContext, useEffect, useState } from "react"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
-import type { SupabaseClient } from "@supabase/supabase-js"
-import type { User } from "@supabase/auth-helpers-nextjs"
 import { useRouter } from "next/navigation"
 import type { Database } from "@/types/supabase"
 
 type SupabaseContext = {
-  supabase: SupabaseClient<Database>
-  user: User | null
-  loading: boolean
-  error: Error | null
+  supabase: ReturnType<typeof createClientComponentClient<Database>>
 }
 
 const Context = createContext<SupabaseContext | undefined>(undefined)
 
-export function SupabaseProvider({
+export default function SupabaseProvider({
   children,
 }: {
   children: React.ReactNode
 }) {
-  const [user, setUser] = useState<User | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<Error | null>(null)
-  const [supabase, setSupabase] = useState<SupabaseClient<Database> | null>(null)
+  const [supabase] = useState(() => createClientComponentClient<Database>())
   const router = useRouter()
 
   useEffect(() => {
-    try {
-      const supabaseClient = createClientComponentClient<Database>()
-      setSupabase(supabaseClient)
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(() => {
+      router.refresh()
+    })
 
-      const {
-        data: { subscription },
-      } = supabaseClient.auth.onAuthStateChange((event, session) => {
-        if (session) {
-          setUser(session.user)
-        } else {
-          setUser(null)
-        }
-        setLoading(false)
-        router.refresh()
-      })
-
-      const getUser = async () => {
-        try {
-          const { data } = await supabaseClient.auth.getSession()
-          if (data.session) {
-            setUser(data.session.user)
-          }
-        } catch (err) {
-          console.error("Error getting session:", err)
-          setError(err instanceof Error ? err : new Error(String(err)))
-        } finally {
-          setLoading(false)
-        }
-      }
-
-      getUser()
-
-      return () => {
-        subscription.unsubscribe()
-      }
-    } catch (err) {
-      console.error("Error initializing Supabase client:", err)
-      setError(err instanceof Error ? err : new Error(String(err)))
-      setLoading(false)
+    return () => {
+      subscription.unsubscribe()
     }
-  }, [router])
+  }, [router, supabase])
 
-  return (
-    <Context.Provider
-      value={{
-        supabase: supabase as SupabaseClient<Database>,
-        user,
-        loading,
-        error,
-      }}
-    >
-      {children}
-    </Context.Provider>
-  )
+  return <Context.Provider value={{ supabase }}>{children}</Context.Provider>
 }
 
 export const useSupabase = () => {

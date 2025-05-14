@@ -22,14 +22,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 
 interface VideoVersionsProps {
   project: any
@@ -70,10 +63,17 @@ export function VideoVersions({ project, versions, userRole }: VideoVersionsProp
       // Get the next version number
       const nextVersionNumber = versions.length > 0 ? Math.max(...versions.map((v) => v.version_number)) + 1 : 1
 
+      // Get user data
+      const { data: userData, error: userError } = await supabase.auth.getUser()
+      
+      if (userError) {
+        throw new Error("Failed to get user data")
+      }
+
       // Save version to Supabase
       const { error } = await supabase.from("video_versions").insert({
         project_id: project.id,
-        uploader_id: userRole === "creator" ? project.owner_id : project.editors[0]?.editor_id,
+        uploader_id: userData.user.id,
         version_number: nextVersionNumber,
         file_url: videoUrl,
         notes,
@@ -177,10 +177,17 @@ export function VideoVersions({ project, versions, userRole }: VideoVersionsProp
     if (!selectedVersion || !feedback) return
 
     try {
+      // Get user data
+      const { data: userData, error: userError } = await supabase.auth.getUser()
+      
+      if (userError) {
+        throw new Error("Failed to get user data")
+      }
+
       // Add feedback as a chat message
       const { error } = await supabase.from("messages").insert({
         project_id: project.id,
-        sender_id: userRole === "creator" ? project.owner_id : project.editors[0]?.editor_id,
+        sender_id: userData.user.id,
         content: `Feedback on version ${selectedVersion.version_number}: ${feedback}`,
         type: "feedback",
       })
@@ -402,26 +409,7 @@ export function VideoVersions({ project, versions, userRole }: VideoVersionsProp
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="feedback">Feedback</Label>
-              <Textarea
-                id="feedback"
-                placeholder="What changes would you like to see?"
-                value={feedback}
-                onChange={(e) => setFeedback(e.target.value)}
-                rows={5}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setFeedbackDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleSubmitFeedback} disabled={!feedback}>
-              Send Feedback
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
-  )
-}
+
+&lt;!-- 10. Update the supabase-server.ts file to use getUser() instead of getSession() where appropriate: --&gt;
+
+\
