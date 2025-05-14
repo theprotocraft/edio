@@ -3,156 +3,98 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { ModeToggle } from "@/components/mode-toggle"
-import { Menu, X } from "lucide-react"
-import { useState } from "react"
+import { ModeToggle } from "@/components/ui/mode-toggle"
 import { useSupabase } from "@/lib/supabase-provider"
+import { useState, useEffect } from "react"
 
 export default function Navbar() {
   const pathname = usePathname()
-  const [isMenuOpen, setIsMenuOpen] = useState(false)
-  const { user } = useSupabase()
+  const { supabase, user } = useSupabase()
+  const [isLoading, setIsLoading] = useState(true)
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
 
-  const isActive = (path: string) => {
-    return pathname === path
+  useEffect(() => {
+    const checkUser = async () => {
+      try {
+        setIsLoading(true)
+        if (user) {
+          setIsAuthenticated(true)
+        } else {
+          setIsAuthenticated(false)
+        }
+      } catch (error) {
+        console.error("Error checking authentication:", error)
+        setIsAuthenticated(false)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    checkUser()
+  }, [user])
+
+  const handleSignOut = async () => {
+    try {
+      await supabase.auth.signOut()
+      setIsAuthenticated(false)
+    } catch (error) {
+      console.error("Error signing out:", error)
+    }
   }
 
-  // Check if we're on authentication pages
-  const isAuthPage = pathname === "/login" || pathname === "/register" || pathname === "/forgot-password"
-  // Check if we're on the home page
-  const isHomePage = pathname === "/"
+  // Don't show navbar on auth pages
+  if (pathname === "/login" || pathname === "/register") {
+    return null
+  }
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
-      <div className="container mx-auto flex h-16 items-center px-4 sm:px-6">
-        <Link href="/" className="flex items-center gap-2">
-          <span className="text-xl font-bold">Edio</span>
-        </Link>
-        <nav className="hidden md:flex ml-auto items-center gap-6">
-          {/* Only show navigation links if not on auth pages and not on home page */}
-          {!isAuthPage && !isHomePage && (
+    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <div className="container flex h-14 items-center">
+        <div className="mr-4 flex">
+          <Link href="/" className="mr-6 flex items-center space-x-2">
+            <span className="font-bold">Edio</span>
+          </Link>
+          <nav className="flex items-center space-x-6 text-sm font-medium">
             <Link
-              href="/"
-              className={`text-sm font-medium ${
-                isActive("/")
-                  ? "text-blue-600 dark:text-blue-500"
-                  : "text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-50"
+              href="/dashboard"
+              className={`transition-colors hover:text-foreground/80 ${
+                pathname === "/dashboard" ? "text-foreground" : "text-foreground/60"
               }`}
             >
-              Home
+              Dashboard
             </Link>
-          )}
-
-          {/* Only show dashboard and projects if user is logged in and not on auth pages */}
-          {!isAuthPage && user && (
+            <Link
+              href="/projects"
+              className={`transition-colors hover:text-foreground/80 ${
+                pathname?.startsWith("/projects") ? "text-foreground" : "text-foreground/60"
+              }`}
+            >
+              Projects
+            </Link>
+          </nav>
+        </div>
+        <div className="ml-auto flex items-center space-x-4">
+          <ModeToggle />
+          {!isLoading && (
             <>
-              <Link
-                href="/dashboard"
-                className={`text-sm font-medium ${
-                  isActive("/dashboard")
-                    ? "text-blue-600 dark:text-blue-500"
-                    : "text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-50"
-                }`}
-              >
-                Dashboard
-              </Link>
-              <Link
-                href="/projects"
-                className={`text-sm font-medium ${
-                  isActive("/projects")
-                    ? "text-blue-600 dark:text-blue-500"
-                    : "text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-50"
-                }`}
-              >
-                Projects
-              </Link>
-            </>
-          )}
-
-          {/* Show auth buttons if user is not logged in */}
-          {!user && (
-            <>
-              <Link href="/login">
-                <Button variant="outline" size="sm">
-                  Sign In
+              {isAuthenticated ? (
+                <Button variant="outline" onClick={handleSignOut}>
+                  Sign Out
                 </Button>
-              </Link>
-              <Link href="/register">
-                <Button size="sm">Sign Up</Button>
-              </Link>
+              ) : (
+                <>
+                  <Button variant="ghost" asChild>
+                    <Link href="/login">Sign In</Link>
+                  </Button>
+                  <Button asChild>
+                    <Link href="/register">Sign Up</Link>
+                  </Button>
+                </>
+              )}
             </>
           )}
-          <ModeToggle />
-        </nav>
-        <div className="flex md:hidden ml-auto items-center gap-4">
-          <ModeToggle />
-          <Button variant="ghost" size="icon" onClick={() => setIsMenuOpen(!isMenuOpen)} aria-label="Toggle Menu">
-            {isMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-          </Button>
         </div>
       </div>
-      {isMenuOpen && (
-        <div className="md:hidden border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950">
-          <div className="container py-4 px-4 sm:px-6 flex flex-col gap-4">
-            {/* Only show navigation links if not on auth pages and not on home page */}
-            {!isAuthPage && !isHomePage && (
-              <Link
-                href="/"
-                className={`text-sm font-medium ${
-                  isActive("/")
-                    ? "text-blue-600 dark:text-blue-500"
-                    : "text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-50"
-                }`}
-                onClick={() => setIsMenuOpen(false)}
-              >
-                Home
-              </Link>
-            )}
-
-            {/* Only show dashboard and projects if user is logged in and not on auth pages */}
-            {!isAuthPage && user && (
-              <>
-                <Link
-                  href="/dashboard"
-                  className={`text-sm font-medium ${
-                    isActive("/dashboard")
-                      ? "text-blue-600 dark:text-blue-500"
-                      : "text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-50"
-                  }`}
-                  onClick={() => setIsMenuOpen(false)}
-                >
-                  Dashboard
-                </Link>
-                <Link
-                  href="/projects"
-                  className={`text-sm font-medium ${
-                    isActive("/projects")
-                      ? "text-blue-600 dark:text-blue-500"
-                      : "text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-50"
-                  }`}
-                  onClick={() => setIsMenuOpen(false)}
-                >
-                  Projects
-                </Link>
-              </>
-            )}
-
-            {/* Show auth buttons if user is not logged in */}
-            {!user && (
-              <div className="flex flex-col gap-2">
-                <Link href="/login" onClick={() => setIsMenuOpen(false)}>
-                  <Button variant="outline" className="w-full">
-                    Sign In
-                  </Button>
-                </Link>
-                <Link href="/register" onClick={() => setIsMenuOpen(false)}>
-                  <Button className="w-full">Sign Up</Button>
-                </Link>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
     </header>
   )
 }

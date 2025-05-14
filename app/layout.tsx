@@ -1,15 +1,16 @@
 import type React from "react"
+import "./globals.css"
+import type { Metadata } from "next"
 import { Inter } from "next/font/google"
-import { ThemeProvider } from "@/components/theme-provider"
+import { ThemeProvider } from "@/components/ui/theme-provider"
 import { Toaster } from "@/components/ui/toaster"
 import { SupabaseProvider } from "@/lib/supabase-provider"
-import "./globals.css"
 
 const inter = Inter({ subsets: ["latin"] })
 
-export const metadata = {
-  title: "Edio - YouTuber & Editor Collaboration Platform",
-  description: "Streamline your video editing workflow with Edio",
+export const metadata: Metadata = {
+  title: "Edio - Video Collaboration Platform",
+  description: "Collaborate on video projects with ease",
     generator: 'v0.dev'
 }
 
@@ -21,12 +22,12 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
-        <SupabaseProvider>
-          <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+          <SupabaseProvider>
             {children}
             <Toaster />
-          </ThemeProvider>
-        </SupabaseProvider>
+          </SupabaseProvider>
+        </ThemeProvider>
       </body>
     </html>
   )
