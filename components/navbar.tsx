@@ -12,18 +12,18 @@ export default function Navbar() {
   const pathname = usePathname()
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [user, setUser] = useState(null)
-  const supabaseContext = useSupabase() // Move hook call outside useEffect
 
   useEffect(() => {
     // Fetch user in useEffect to avoid conditional hook call
     try {
+      const supabaseContext = useSupabase()
       setUser(supabaseContext.user)
     } catch (error) {
       console.error("Error accessing Supabase context:", error)
       // Handle error appropriately, maybe set user to null or a default state
       setUser(null)
     }
-  }, [supabaseContext.user])
+  }, [])
 
   const isActive = (path: string) => {
     return pathname === path
