@@ -12,19 +12,18 @@ export default async function ProjectsPage() {
   try {
     const supabase = createServerClient()
 
-    // Get user with getUser() for security
-    const { data: userData, error: userError } = await supabase.auth.getUser()
+    const {
+      data: { session },
+    } = await supabase.auth.getSession()
 
-    if (userError || !userData.user) {
+    if (!session) {
       redirect("/login")
     }
-
-    const userId = userData.user.id
 
     // Fetch user profile
     let user = null
     try {
-      const { data, error } = await supabase.from("users").select("*").eq("id", userId).single()
+      const { data, error } = await supabase.from("users").select("*").eq("id", session.user.id).single()
 
       if (error) {
         console.error("User fetch error:", error)
@@ -35,48 +34,24 @@ export default async function ProjectsPage() {
       console.error("Error fetching user:", error)
     }
 
-    // Fetch projects - fix .or() logic by running separate queries
+    // Fetch projects
     let projects = []
     try {
-      // First, get projects where user is owner
-      const { data: ownerProjects, error: ownerError } = await supabase
+      const { data, error } = await supabase
         .from("projects")
         .select(`
           *,
-          owner:users!projects_owner_id_fkey(id, name, email)
+          owner:users!projects_owner_id_fkey(id, name, email),
+          editors:project_editors(editor_id, editor:users(id, name, email))
         `)
-        .eq("owner_id", userId)
+        .or(`owner_id.eq.${session.user.id},project_editors.editor_id.eq.${session.user.id}`)
         .order("updated_at", { ascending: false })
 
-      if (ownerError) {
-        console.error("Owner projects fetch error:", ownerError)
+      if (error) {
+        console.error("Projects fetch error:", error)
+      } else {
+        projects = data || []
       }
-
-      // Then, get projects where user is editor
-      const { data: editorData, error: editorError } = await supabase
-        .from("project_editors")
-        .select(`
-          project_id,
-          project:projects(
-            *,
-            owner:users!projects_owner_id_fkey(id, name, email)
-          )
-        `)
-        .eq("editor_id", userId)
-        .order("project(updated_at)", { ascending: false })
-
-      if (editorError) {
-        console.error("Editor projects fetch error:", editorError)
-      }
-
-      // Combine and deduplicate results
-      const editorProjects = editorData?.map((item) => item.project) || []
-      const allProjects = [...(ownerProjects || []), ...(editorProjects || [])]
-
-      // Remove duplicates by project ID
-      projects = Array.from(new Map(allProjects.map((project) => [project.id, project])).values()).sort(
-        (a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
-      )
     } catch (error) {
       console.error("Error fetching projects:", error)
     }
