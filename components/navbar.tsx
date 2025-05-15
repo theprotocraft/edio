@@ -29,10 +29,16 @@ export default function Navbar() {
     return pathname === path
   }
 
-  // Check if we're on authentication pages
+  // Check if we're on authentication pages or dashboard pages
   const isAuthPage = pathname === "/login" || pathname === "/register" || pathname === "/forgot-password"
+  const isDashboardPage = pathname?.startsWith("/dashboard")
   // Check if we're on the home page
   const isHomePage = pathname === "/"
+
+  // Don't render navbar on auth pages or dashboard pages
+  if (isAuthPage || isDashboardPage) {
+    return null
+  }
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
@@ -42,7 +48,7 @@ export default function Navbar() {
         </Link>
         <nav className="hidden md:flex ml-auto items-center gap-6">
           {/* Only show navigation links if not on auth pages and not on home page */}
-          {!isAuthPage && !isHomePage && (
+          {!isHomePage && (
             <Link
               href="/"
               className={`text-sm font-medium ${
@@ -55,8 +61,8 @@ export default function Navbar() {
             </Link>
           )}
 
-          {/* Only show dashboard and projects if user is logged in and not on auth pages */}
-          {!isAuthPage && user && (
+          {/* Only show dashboard and projects if user is logged in */}
+          {user && (
             <>
               <Link
                 href="/dashboard"
@@ -106,8 +112,8 @@ export default function Navbar() {
       {isMenuOpen && (
         <div className="md:hidden border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950">
           <div className="container py-4 px-4 sm:px-6 flex flex-col gap-4">
-            {/* Only show navigation links if not on auth pages and not on home page */}
-            {!isAuthPage && !isHomePage && (
+            {/* Only show navigation links if not on home page */}
+            {!isHomePage && (
               <Link
                 href="/"
                 className={`text-sm font-medium ${
@@ -121,8 +127,8 @@ export default function Navbar() {
               </Link>
             )}
 
-            {/* Only show dashboard and projects if user is logged in and not on auth pages */}
-            {!isAuthPage && user && (
+            {/* Only show dashboard and projects if user is logged in */}
+            {user && (
               <>
                 <Link
                   href="/dashboard"
