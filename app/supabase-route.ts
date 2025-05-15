@@ -2,13 +2,49 @@ import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
 import { cookies } from "next/headers"
 import type { Database } from "@/types/supabase"
 
-// Export both function names to maintain compatibility
+// Route handler Supabase client
 export const createRouteClient = async () => {
-  const cookieStore = await cookies()
-  return createRouteHandlerClient<Database>({ cookies: () => cookieStore })
-}
+  try {
+    const cookieStore = await cookies()
 
-export const createRouteSupabaseClient = async () => {
-  const cookieStore = await cookies()
-  return createRouteHandlerClient<Database>({ cookies: () => cookieStore })
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+      console.error("Missing Supabase environment variables in route handler")
+      // Return a minimal client that won't throw errors
+      return {
+        auth: {
+          getUser: () => Promise.resolve({ data: { user: null }, error: null }),
+          exchangeCodeForSession: () => Promise.resolve({ data: null, error: null }),
+        },
+        from: () => ({
+          select: () => ({
+            eq: () => ({
+              single: () => Promise.resolve({ data: null, error: null }),
+            }),
+          }),
+          insert: () => Promise.resolve({ data: null, error: null }),
+        }),
+      } as any
+    }
+
+    return createRouteHandlerClient<Database>({
+      cookies: () => cookieStore,
+    })
+  } catch (error) {
+    console.error("Error creating route client:", error)
+    // Return a minimal client that won't throw errors
+    return {
+      auth: {
+        getUser: () => Promise.resolve({ data: { user: null }, error: null }),
+        exchangeCodeForSession: () => Promise.resolve({ data: null, error: null }),
+      },
+      from: () => ({
+        select: () => ({
+          eq: () => ({
+            single: () => Promise.resolve({ data: null, error: null }),
+          }),
+        }),
+        insert: () => Promise.resolve({ data: null, error: null }),
+      }),
+    } as any
+  }
 }

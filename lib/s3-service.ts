@@ -1,3 +1,4 @@
+import { createRouteClient } from "@/app/supabase-route"
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3"
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner"
 
@@ -12,17 +13,6 @@ export type PresignedUrlResponse = {
   uploadUrl: string
   fileUrl: string
   error?: string
-}
-
-// Create and configure S3 client
-export function getS3Client() {
-  return new S3Client({
-    region: process.env.AWS_REGION!,
-    credentials: {
-      accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
-    },
-  })
 }
 
 /**
@@ -57,12 +47,68 @@ export async function generatePresignedUrl(request: PresignedUrlRequest): Promis
       }
     }
 
-    // Initialize S3 client
-    const s3Client = getS3Client()
+    // Authenticate user with Supabase
+    const supabase = createRouteClient()
+    const { data: sessionData } = await supabase.auth.getSession()
 
-    // Format path for S3: uploads/{projectId}/{fileType}/{fileName}
+    if (!sessionData?.session?.user) {
+      return {
+        uploadUrl: "",
+        fileUrl: "",
+        error: "User not authenticated",
+      }
+    }
+
+    const userId = sessionData.session.user.id
+
+    // Validate user has access to the project
+    const { data: project, error: projectError } = await supabase
+      .from("projects")
+      .select("id, owner_id")
+      .eq("id", projectId)
+      .single()
+
+    if (projectError || !project) {
+      return {
+        uploadUrl: "",
+        fileUrl: "",
+        error: "Project not found or access denied",
+      }
+    }
+
+    // Check if user is owner or editor
+    const isOwner = project.owner_id === userId
+
+    if (!isOwner) {
+      // Check if user is an editor for this project
+      const { data: projectEditor, error: editorError } = await supabase
+        .from("project_editors")
+        .select("id")
+        .eq("project_id", projectId)
+        .eq("editor_id", userId)
+        .single()
+
+      if (editorError || !projectEditor) {
+        return {
+          uploadUrl: "",
+          fileUrl: "",
+          error: "Access denied: User is not authorized for this project",
+        }
+      }
+    }
+
+    // Format path for S3: uploads/{userId}/{projectId}/{fileType}/{fileName}
     const sanitizedFileName = fileName.replace(/[^a-zA-Z0-9._-]/g, "_")
-    const filePath = `uploads/${projectId}/${fileType}/${sanitizedFileName}`
+    const filePath = `uploads/${userId}/${projectId}/${fileType}/${sanitizedFileName}`
+
+    // Initialize S3 client
+    const s3Client = new S3Client({
+      region,
+      credentials: {
+        accessKeyId,
+        secretAccessKey,
+      },
+    })
 
     // Create command for S3 PUT operation
     const command = new PutObjectCommand({
@@ -85,5 +131,53 @@ export async function generatePresignedUrl(request: PresignedUrlRequest): Promis
       fileUrl: "",
       error: error.message || "Failed to generate upload URL",
     }
+  }
+}
+
+/**
+ * API Route handler to generate presigned URLs
+ */
+export async function apiGeneratePresignedUrl(req: Request): Promise<Response> {
+  if (req.method !== "POST") {
+    return new Response(JSON.stringify({ error: "Method not allowed" }), {
+      status: 405,
+      headers: { "Content-Type": "application/json" },
+    })
+  }
+
+  try {
+    const body = (await req.json()) as PresignedUrlRequest
+    const result = await generatePresignedUrl(body)
+
+    if (result.error) {
+      // Determine appropriate status code based on error
+      let statusCode = 500
+
+      if (result.error.includes("not authenticated")) {
+        statusCode = 401
+      } else if (result.error.includes("access denied") || result.error.includes("not authorized")) {
+        statusCode = 403
+      } else if (result.error.includes("not found")) {
+        statusCode = 404
+      } else if (result.error.includes("Missing required fields")) {
+        statusCode = 400
+      }
+
+      return new Response(JSON.stringify({ error: result.error }), {
+        status: statusCode,
+        headers: { "Content-Type": "application/json" },
+      })
+    }
+
+    return new Response(JSON.stringify(result), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    })
+  } catch (error: any) {
+    console.error("Error in presigned URL API route:", error)
+    return new Response(JSON.stringify({ error: error.message || "Internal server error" }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    })
   }
 }

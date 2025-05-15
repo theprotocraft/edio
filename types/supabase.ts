@@ -1,36 +1,84 @@
-export type Database = {
+export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[]
+
+export interface Database {
   public: {
     Tables: {
-      projects: {
+      users: {
         Row: {
           id: string
-          owner_id: string
-          name: string
-          description: string
+          first_name: string
+          last_name: string
+          email: string
+          avatar_url: string | null
           created_at: string
           updated_at: string
-          status: string
-          completed_at: string | null
         }
         Insert: {
-          id?: string
-          owner_id: string
-          name: string
-          description: string
+          id: string
+          first_name: string
+          last_name: string
+          email: string
+          avatar_url?: string | null
           created_at?: string
           updated_at?: string
-          status?: string
-          completed_at?: string | null
         }
         Update: {
           id?: string
-          owner_id?: string
-          name?: string
-          description?: string
+          first_name?: string
+          last_name?: string
+          email?: string
+          avatar_url?: string | null
           created_at?: string
           updated_at?: string
+        }
+      }
+      projects: {
+        Row: {
+          id: string
+          name: string
+          description: string | null
+          status: string
+          owner_id: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          description?: string | null
           status?: string
-          completed_at?: string | null
+          owner_id: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          description?: string | null
+          status?: string
+          owner_id?: string
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      project_editors: {
+        Row: {
+          id: string
+          project_id: string
+          editor_id: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          project_id: string
+          editor_id: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          project_id?: string
+          editor_id?: string
+          created_at?: string
         }
       }
       uploads: {
@@ -40,9 +88,11 @@ export type Database = {
           file_name: string
           file_type: string
           file_size: number
-          s3_key: string
+          file_key: string
           uploaded_by: string
+          status: string
           created_at: string
+          updated_at: string
         }
         Insert: {
           id?: string
@@ -50,9 +100,11 @@ export type Database = {
           file_name: string
           file_type: string
           file_size: number
-          s3_key: string
+          file_key: string
           uploaded_by: string
+          status: string
           created_at?: string
+          updated_at?: string
         }
         Update: {
           id?: string
@@ -60,9 +112,11 @@ export type Database = {
           file_name?: string
           file_type?: string
           file_size?: number
-          s3_key?: string
+          file_key?: string
           uploaded_by?: string
+          status?: string
           created_at?: string
+          updated_at?: string
         }
       }
       video_versions: {
@@ -70,108 +124,95 @@ export type Database = {
           id: string
           project_id: string
           version_number: number
-          s3_key: string
-          notes: string | null
+          title: string
+          description: string | null
+          video_url: string
+          thumbnail_url: string | null
+          duration: number | null
           created_by: string
           created_at: string
-          status: string | null
-          approved_at: string | null
+          updated_at: string
         }
         Insert: {
           id?: string
           project_id: string
           version_number: number
-          s3_key: string
-          notes: string | null
+          title: string
+          description?: string | null
+          video_url: string
+          thumbnail_url?: string | null
+          duration?: number | null
           created_by: string
           created_at?: string
-          status?: string | null
-          approved_at?: string | null
+          updated_at?: string
         }
         Update: {
           id?: string
           project_id?: string
           version_number?: number
-          s3_key?: string
-          notes?: string | null
+          title?: string
+          description?: string | null
+          video_url?: string
+          thumbnail_url?: string | null
+          duration?: number | null
           created_by?: string
           created_at?: string
-          status?: string | null
-          approved_at?: string | null
+          updated_at?: string
         }
       }
-      project_editors: {
+      messages: {
         Row: {
+          id: string
           project_id: string
-          editor_id: string
+          user_id: string
+          content: string
+          created_at: string
         }
         Insert: {
+          id?: string
           project_id: string
-          editor_id: string
+          user_id: string
+          content: string
+          created_at?: string
         }
         Update: {
+          id?: string
           project_id?: string
-          editor_id?: string
+          user_id?: string
+          content?: string
+          created_at?: string
         }
       }
       notifications: {
         Row: {
           id: string
           user_id: string
+          type: string
+          title: string
           message: string
+          link: string | null
+          read: boolean
           created_at: string
         }
         Insert: {
           id?: string
           user_id: string
+          type: string
+          title: string
           message: string
+          link?: string | null
+          read?: boolean
           created_at?: string
         }
         Update: {
           id?: string
           user_id?: string
+          type?: string
+          title?: string
           message?: string
+          link?: string | null
+          read?: boolean
           created_at?: string
-        }
-      }
-      messages: {
-        Row: {
-          id: string
-          video_version_id: string
-          content: string
-          sent_by: string
-          sent_at: string
-        }
-        Insert: {
-          id?: string
-          video_version_id: string
-          content: string
-          sent_by: string
-          sent_at?: string
-        }
-        Update: {
-          id?: string
-          video_version_id?: string
-          content?: string
-          sent_by?: string
-          sent_at?: string
-        }
-      }
-      users: {
-        Row: {
-          id: string
-          full_name: string
-          avatar_url: string
-        }
-        Insert: {
-          id: string
-          full_name: string
-          avatar_url: string
-        }
-        Update: {
-          id?: string
-          full_name?: string
-          avatar_url?: string
         }
       }
     }

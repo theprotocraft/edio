@@ -3,41 +3,77 @@
 import { useEffect, useState } from "react"
 import { useSupabase } from "@/lib/supabase-provider"
 
-export function useUser() {
-  const { supabase, user } = useSupabase()
-  const [userData, setUserData] = useState<any | null>(null)
+export interface UserDetails {
+  id: string
+  first_name: string
+  last_name: string
+  avatar_url: string
+  email: string
+  created_at: string
+  updated_at: string
+}
+
+export const useUser = () => {
+  const { supabase } = useSupabase()
+  const [user, setUser] = useState<UserDetails | null>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<Error | null>(null)
 
   useEffect(() => {
-    const fetchUserData = async () => {
-      if (!user) {
-        setUserData(null)
-        setLoading(false)
-        return
-      }
-
+    const fetchUser = async () => {
       try {
-        const { data, error } = await supabase.from("users").select("*").eq("id", user.id).single()
+        setLoading(true)
 
-        if (error) {
-          console.error("Error fetching user data:", error)
-          setUserData(null)
-        } else {
-          setUserData(data)
+        // Get the current user from Supabase Auth
+        const {
+          data: { user: authUser },
+          error: authError,
+        } = await supabase.auth.getUser()
+
+        if (authError) {
+          throw authError
         }
-      } catch (error) {
-        console.error("Error in useUser hook:", error)
-        setUserData(null)
+
+        if (!authUser) {
+          setUser(null)
+          return
+        }
+
+        // Get the user details from the users table
+        const { data, error: profileError } = await supabase
+          .from("users") // Changed from 'profiles' to 'users'
+          .select("*")
+          .eq("id", authUser.id)
+          .single()
+
+        if (profileError) {
+          throw profileError
+        }
+
+        setUser(data as UserDetails)
+      } catch (err) {
+        setError(err instanceof Error ? err : new Error("An unknown error occurred"))
+        console.error("Error fetching user:", err)
       } finally {
         setLoading(false)
       }
     }
 
-    fetchUserData()
-  }, [supabase, user])
+    fetchUser()
 
-  return { user: userData, loading }
+    // Set up a subscription to auth changes
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
+        fetchUser()
+      } else if (event === "SIGNED_OUT") {
+        setUser(null)
+      }
+    })
+
+    return () => {
+      authListener.subscription.unsubscribe()
+    }
+  }, [supabase])
+
+  return { user, loading, error }
 }
-
-// Re-export useSupabase for convenience
-export { useSupabase } from "@/lib/supabase-provider"
