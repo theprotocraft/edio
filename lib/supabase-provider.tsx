@@ -1,35 +1,43 @@
 "use client"
 
 import type React from "react"
+
 import { createContext, useContext, useEffect, useState } from "react"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
-import type { User } from "@supabase/auth-helpers-nextjs"
-import { useRouter } from "next/navigation"
+import type { SupabaseClient } from "@supabase/auth-helpers-nextjs"
 import type { Database } from "@/types/supabase"
+import { useToast } from "@/components/ui/use-toast"
 
 type SupabaseContext = {
-  supabase: ReturnType<typeof createClientComponentClient<Database>>
-  user: User | null
-  loading: boolean
+  supabase: SupabaseClient<Database>
+  user: any | null
+  isLoading: boolean
 }
 
 const Context = createContext<SupabaseContext | undefined>(undefined)
 
 export function SupabaseProvider({ children }: { children: React.ReactNode }) {
   const [supabase] = useState(() => createClientComponentClient<Database>())
-  const [user, setUser] = useState<User | null>(null)
-  const [loading, setLoading] = useState(true)
-  const router = useRouter()
+  const [user, setUser] = useState<any | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const { toast } = useToast()
 
   useEffect(() => {
     const getUser = async () => {
       try {
-        const { data } = await supabase.auth.getUser()
-        setUser(data.user)
+        const {
+          data: { user },
+        } = await supabase.auth.getUser()
+        setUser(user)
       } catch (error) {
         console.error("Error getting user:", error)
+        toast({
+          title: "Authentication Error",
+          description: "There was an error checking your authentication status.",
+          variant: "destructive",
+        })
       } finally {
-        setLoading(false)
+        setIsLoading(false)
       }
     }
 
@@ -43,19 +51,18 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
       } else {
         setUser(null)
       }
-      setLoading(false)
-      router.refresh()
+      setIsLoading(false)
     })
 
     return () => {
       subscription.unsubscribe()
     }
-  }, [router, supabase])
+  }, [supabase, toast])
 
-  return <Context.Provider value={{ supabase, user, loading }}>{children}</Context.Provider>
+  return <Context.Provider value={{ supabase, user, isLoading }}>{children}</Context.Provider>
 }
 
-export const useSupabase = () => {
+export function useSupabase() {
   const context = useContext(Context)
   if (context === undefined) {
     throw new Error("useSupabase must be used inside SupabaseProvider")
