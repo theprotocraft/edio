@@ -1,0 +1,156 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+### Edio – YouTuber–Editor Collaboration Platform
+
+---
+
+## 🔐 Authentication Flow
+
+```
+pgsql
+CopyEdit
+[Landing Page]
+    ↓
+[Choose Role: YouTuber / Editor]
+    ↓
+[Google OAuth Login (Supabase Auth)]
+    ↓
+[Onboarding Page (Role-based)]
+    - YouTuber: Name, Connect YouTube (optional)
+    - Editor: Just confirm profile
+    ↓
+[Redirect to Role-specific Dashboard]
+
+```
+
+---
+
+## 📁 Project Creation & Editor Assignment
+
+```
+csharp
+CopyEdit
+[YouTuber Dashboard → Upload Section]
+    ↓
+[Drag & Drop Upload → Create Project]
+    ↓
+[Enter Project Title & Optional Instructions]
+    ↓
+[Select Editor from Invited List]
+    ↓
+[If Editor Not Yet Invited → Navigate to Editors Section]
+    ↓
+[Invite New Editor by Email]
+    ↓
+[Editor Accepts Invite (auto-grants access)]
+    ↓
+[Return to Upload → Assign Project to Editor]
+    ↓
+[Project becomes visible in both dashboards]
+
+```
+
+---
+
+## 🧵 Project Collaboration Flow (Messaging + Versions)
+
+```
+scss
+CopyEdit
+[Project Card (in Grid View)]
+    ↓
+[Click to Expand → Chat + Sidebar Thread]
+    ↓
+[YouTuber/Editor exchange messages]
+    ↓
+[Editor uploads edited video → version added]
+    ↓
+[YouTuber previews version]
+    ↓
+[Approve OR Request Changes]
+    ↓
+[Editor uploads next version]
+    ↻ Repeat until approval
+
+```
+
+---
+
+## 🖼️ Thumbnail + Metadata Update
+
+```
+csharp
+CopyEdit
+[Editor or YouTuber uploads thumbnail]
+    → Updates `projects.thumbnail_url`
+
+[YouTuber updates video title / description]
+    → Stored on `projects` table
+
+```
+
+---
+
+## ☁️ Final Upload to YouTube
+
+```
+csharp
+CopyEdit
+[YouTuber Dashboard → Project Card]
+    ↓
+[Final Version Approved]
+    ↓
+[Click: “Upload to YouTube”]
+    ↓
+[Use Stored API Key (if given) → Upload with metadata]
+
+```
+
+---
+
+## 🔔 Notification System
+
+```
+markdown
+CopyEdit
+[Triggers]
+    - Editor uploads new version
+    - YouTuber requests changes
+    - Editor assigned to project
+    ↓
+[In-App Notifications → Bell Icon / Badge Count]
+
+```
+
+---
+
+## 🧭 Navigation Flow Overview
+
+### YouTuber Dashboard
+
+```
+scss
+CopyEdit
+[Sidebar Nav]
+→ Overview (Stats, Recent Activity)
+→ Projects (Card View)
+→ Editors (Invite, Manage Access)
+→ Settings (YouTube Keys, Profile)
+
+```
+
+### Editor Dashboard
+
+```
+scss
+CopyEdit
+[Sidebar Nav]
+→ Overview (Pending Projects)
+→ Projects (Card View)
+→ YouTubers (List of Accessible Accounts)
+→ Settings (Profile)
+
+```

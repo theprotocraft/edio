@@ -1,0 +1,126 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+### Edio – YouTuber–Editor Video Collaboration Platform
+
+---
+
+## 🧩 Overview
+
+This document outlines the technologies selected for the **Edio platform**, explaining what each is used for and why it was chosen.
+
+---
+
+## 🌐 Frontend
+
+| Tech | Usage | Notes |
+| --- | --- | --- |
+| **Next.js (App Router)** | Full-stack React framework | File-based routing, API routes, SSR/SSG support |
+| **Tailwind CSS** | Styling | Utility-first CSS for speed and consistency |
+| **Shadcn/UI** | UI Components | Pre-built Tailwind-styled component library |
+| **Lucide Icons** | Icons | Simple, consistent icon pack |
+| **React Query or useSWR** | (Optional) Data fetching | For client-side API calls, if needed |
+| **Framer Motion** | Animations | Smooth component transitions |
+
+---
+
+## 🧠 State Management
+
+| Tech | Usage |
+| --- | --- |
+| **useState/useEffect** | Basic local state |
+| **Zustand** *(Optional)* | Global state (notifications, user info) |
+| **React Context** | Role management, auth user context |
+
+---
+
+## 🗂 Backend
+
+| Tech | Usage | Notes |
+| --- | --- | --- |
+| **Next.js API Routes** | Server-side logic | Lightweight backend for handling business logic |
+| **Supabase** | Auth + DB + RLS | Handles PostgreSQL, Auth, and Row-Level Security policies |
+| **PostgreSQL (via Supabase)** | Relational database | All structured data: users, projects, uploads, etc. |
+| **Amazon S3** | File storage | For large files (videos, thumbnails) |
+| **S3 Pre-Signed URLs** | Secure uploads/downloads | Prevents unsecure direct uploads |
+| **YouTube Data API v3** | Video publishing | Optional integration for upload/scheduling |
+
+---
+
+## 📦 File Storage Strategy
+
+| Item | Stored In | Notes |
+| --- | --- | --- |
+| Raw Video | S3 | Uploaded by YouTuber |
+| Edited Versions | S3 | Uploaded by Editors |
+| Thumbnails | S3 | Current = pointer in `projects`; versions stored in `uploads` |
+| File Metadata | Supabase DB | `uploads` table with type, version, URL, etc. |
+
+---
+
+## 🔐 Authentication
+
+| Provider | Why |
+| --- | --- |
+| **Supabase Auth (OAuth with Google)** | Easy OAuth flow, secure, well-documented |
+
+---
+
+## 💬 Realtime / Messaging
+
+| Feature | Approach |
+| --- | --- |
+| Chat Threads | Supabase table polling (MVP) |
+| Notifications | Supabase table + polling or webhook-based notifications |
+| Live previews or updates | Optional later (Supabase Realtime or Pusher/Ably if scaling needed) |
+
+---
+
+## ⚙️ DevOps & Infra (Future Scope)
+
+| Tool | Usage | Status |
+| --- | --- | --- |
+| **Vercel** | Hosting (Frontend + API routes) | Seamless with Next.js |
+| **GitHub + CI/CD** | Version control + deploys | Optional for team scaling |
+| **CloudFront (optional)** | CDN for videos | Add later if needed for performance |
+| **Whisper API (optional)** | Auto-transcripts | May add if demand arises |
+
+---
+
+## 📚 API & Libraries
+
+| Library | Usage |
+| --- | --- |
+| **uuid** | IDs for projects, messages |
+| **dayjs/date-fns** | Time formatting |
+| **zod / yup** | Input validation |
+| **axios / fetch** | API communication |
+| **React Hook Form** | Form handling (for metadata entry) |
+
+---
+
+## 📱 Responsive Design
+
+- Tailwind + Shadcn ensure built-in mobile responsiveness
+- Layouts will adapt to smaller screens (grid/card behaviors, modals)
+
+---
+
+## 🧲 Testing (Future Scope)
+
+| Tool | Usage |
+| --- | --- |
+| **Playwright / Cypress** | E2E tests |
+| **Jest / React Testing Library** | Unit/component tests |
+
+---
+
+## 📊 Analytics & Monitoring (Future Scope)
+
+| Tool | Usage |
+| --- | --- |
+| **Plausible / PostHog** | User behavior analytics |
+| **Sentry** | Error tracking |
+| **LogRocket** | Session replays for debugging |

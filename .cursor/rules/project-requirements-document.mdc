@@ -1,0 +1,170 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# 📋 Project Requirements Document (PRD)
+
+---
+
+## 🧠 Project Name
+
+Edio — A Collaborative Video Editing Platform for YouTubers and Editors
+
+---
+
+## 🌟 Purpose
+
+To simplify the post-production journey for YouTubers by streamlining collaboration with video editors. The platform will centralize video uploads, feedback, revisions, and YouTube publishing.
+
+---
+
+## 👥 Target Users
+
+- **YouTubers**
+    
+    Content creators who upload raw footage, provide instructions, and review edits.
+    
+- **Editors**
+    
+    Video editors who download raw videos, upload edited versions, receive feedback, and finalize outputs.
+
+---
+
+## 🧩 Core Features
+
+### 🔐 Authentication
+
+- Supabase Auth with Google OAuth
+- Two roles: `youtuber` and `editor`
+- YouTubers can invite editors via email
+
+### 🧠 Project Management
+
+- Each video editing cycle is treated as a **Project**
+- Projects contain:
+    - Raw video
+    - Chat thread (like a WhatsApp thread per video)
+    - Versioned uploads
+    - Final approval status
+
+### 📁 File Uploads & Storage
+
+- Large video file support (GBs)
+- Stored on **Amazon S3**
+- Pre-signed URLs for uploads and previews
+- Public or temporary URLs (configurable)
+- Upload types: raw video, edited video, thumbnail, transcript
+
+### 💬 Project Chat
+
+- Each project has a threaded conversation between YouTuber and Editor
+- Messages can be text or version-specific (e.g., “V2 uploaded”)
+- Blurred overlay UX for message detail on card click
+
+### 📊 Dashboards
+
+### For YouTubers
+
+- Sidebar: Overview, Projects, Editors, Settings
+- Drag & drop to upload and create new project
+- Project list with statuses (Pending, Approved, etc.)
+- Editor invitation & access control
+- Optional: YouTube API integration for direct upload
+
+### For Editors
+
+- Sidebar: Overview, Projects, YouTubers, Settings
+- View assigned projects
+- Upload edited versions
+- Chat and receive notifications when changes are requested
+
+### 🧠 Version Control
+
+- Each video has versions (`V1`, `V2`, etc.)
+- Each version is a record with:
+    - File URL
+    - Uploader ID
+    - Timestamp
+    - Preview URL
+- Only current version shown on dashboard (archived accessible)
+
+### 🖼 Thumbnail, Title & Description
+
+- Stored on the `project` entity (single source of truth)
+- History tracked in `uploads` table
+- Editable by both parties (approval required before publish)
+
+### 📄 YouTube Integration
+
+- Optional for YouTubers
+- Requires OAuth + API Key
+- Video metadata is pulled from final `project` state
+- Schedule upload or publish instantly
+
+### 🔔 Notifications
+
+- In-app notifications for version uploads and feedback
+- Badges or tray UI
+- Optional: browser push (later)
+
+---
+
+## 🧱 Database Entities
+
+### `users`
+
+- `id`, `email`, `role` (`youtuber` / `editor`)
+- YouTube integration info (optional)
+- Auth via Supabase
+
+### `projects`
+
+- `id`, `owner_id`, `editor_id`, `title`, `video_title`, `description`, `thumbnail_url`, `status`
+- Maps to 1 YouTuber and 1 (for now) Editor
+
+### `video_versions`
+
+- `id`, `project_id`, `version_number`, `file_url`, `preview_url`, `created_at`, `uploader_id`
+- Linked to each project
+
+### `chat_messages`
+
+- `id`, `project_id`, `sender_id`, `message_text`, `message_type`, `version_id`, `timestamp`
+- Can be plain message or version reference
+
+### `uploads`
+
+- `id`, `uploader_id`, `project_id`, `file_type`, `file_url`, `created_at`
+- Tracks all assets (videos, thumbnails, etc.)
+
+### `notifications`
+
+- `id`, `recipient_id`, `type`, `message`, `is_read`, `created_at`
+
+---
+
+## 🔐 Access Control
+
+- Supabase RLS planned (but toggled off initially for faster dev)
+- All tables include `user_id`/`owner_id`/`editor_id` fields
+- Filter data via app logic for now, turn on RLS later
+
+---
+
+## ⚠️ Non-Goals (For Now)
+
+- Team-level access control per project
+- AI video editing or auto feedback
+- Public profiles or sharing
+- Mobile app
+
+---
+
+## ✨ Optional Features to Consider Later
+
+- Dark mode
+- AI-generated titles/descriptions
+- Whisper-generated transcripts
+- Audit logs
+- Templates for project reuse

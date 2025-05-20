@@ -1,0 +1,165 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+🎨 Design System (Inspired by dub.co)
+
+A unified design language for Edio — clean, confident, minimal.
+
+🅰️ Font Style
+
+Font: Inter, sans-serif
+
+Weights: 400 / 500 / 600 / 700
+
+Letter spacing: Slightly tight (e.g. tracking-tight)
+
+Line height: Default or leading-snug for headings
+
+// Tailwind config (if customizing)
+fontFamily: {
+  sans: ['Inter', 'sans-serif'],
+}
+
+🎨 Font Colors
+
+Use Case
+
+Tailwind Token
+
+Body Text
+
+text-muted-foreground
+
+Headings
+
+text-foreground
+
+Descriptions
+
+text-sm text-muted-foreground
+
+Links
+
+text-primary hover:underline
+
+🔘 Button Styles
+
+Primary Button
+
+bg-primary text-white
+
+hover:bg-primary/90
+
+rounded-2xl, shadow-md
+
+transition-transform active:scale-[0.98]
+
+Secondary Button
+
+bg-muted text-foreground
+
+hover:bg-accent
+
+border border-input
+
+🌫️ Backgrounds
+
+Element
+
+Style
+
+Page Background
+
+bg-background
+
+Cards
+
+bg-card or bg-muted
+
+Input Fields
+
+bg-accent/40
+
+Modals/Overlays
+
+bg-black/40 (with blur)
+
+Optional Gradient (Hero or Auth Pages)
+
+bg-gradient-to-br from-[#ffffff] to-[#f7f7f7]
+
+🩸 Footer Style
+
+bg-muted, text-muted-foreground
+
+border-t border-border
+
+text-sm, py-6 px-4 md:px-8
+
+Use grid or flex justify-between
+
+🔀 Transitions
+
+Element
+
+Interaction Style
+
+Button
+
+transition-all duration-200
+
+Card Hover
+
+hover:shadow-lg hover:-translate-y-[1px]
+
+Modals
+
+animate-in fade-in (Shadcn defaults)
+
+Nav Links
+
+hover:underline underline-offset-4
+
+📆 Layout & Containers
+
+Max width: max-w-screen-lg or max-w-5xl
+
+Container padding: px-4 md:px-6
+
+Responsive spacing: space-y-6, gap-4
+
+Use mx-auto for centering
+
+🧱 Borders & Dividers
+
+Use sparingly: border border-input
+
+Dividers: border-t border-border my-4
+
+✅ Design Principles (Dub-style)
+
+Principle
+
+Application
+
+Clean
+
+Minimal use of colors & borders, high whitespace
+
+Confident
+
+Sharp headings, subtle transitions
+
+Minimal
+
+Primary + 1 accent color, neutral greys for everything else
+
+Smooth
+
+Transitions and slight scale effects for interactivity
+
+Consistent
+
+Use tokens from Shadcn & Tailwind — avoid ad-hoc styling

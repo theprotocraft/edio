@@ -1,0 +1,180 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# 🎨 **Frontend Guidelines – Edio**
+
+### ✨ A scalable design system for the YouTuber–Editor Collaboration Platform
+
+---
+
+## 🧱 Overview
+
+This document defines the standards and practices for building a clean, performant, and scalable frontend using:
+
+- **Framework:** Next.js (App Router)
+- **Styling:** Tailwind CSS
+- **UI Kit:** Shadcn/UI
+- **Icons:** [Lucide Icons](https://lucide.dev/)
+
+---
+
+## 📁 Folder Structure
+
+```bash
+/app
+  /(auth)                → Login / Signup / OAuth pages
+  /dashboard             → Protected routes
+    /overview            → Shared dashboard overview
+    /projects            → Active / past projects
+    /editors             → (Visible to YouTubers) – Manage invited editors
+    /youtubers           → (Visible to Editors) – View/communicate with assigned YouTubers
+    /settings            → Profile/account settings
+
+/components
+  /ui                    → Shadcn components (Button, Dialog, etc.)
+  /custom                → App-specific components (ProjectCard, VideoPlayer, etc.)
+
+/lib
+  api.ts                 → API functions
+  utils.ts               → Reusable helpers
+  auth.ts                → Supabase session + user helpers
+
+/hooks
+  useUser.ts             → Hook for current user and role-based logic
+
+/types
+  index.ts               → Global types (UserRole, Project, Upload, etc.)
+```
+
+---
+
+## 🧱 Component Guidelines
+
+- ✅ Use **Shadcn/UI** for core components (Button, Dialog, etc.)
+- 🎯 Create custom components in `/components/custom`
+- 💡 Components must be fully typed with props interfaces
+
+```tsx
+interface ProjectCardProps {
+  title: string;
+  status: 'pending' | 'approved';
+}
+
+export function ProjectCard({ title, status }: ProjectCardProps) {
+  return (
+    <Card className="p-4">
+      <h2 className="text-lg font-semibold">{title}</h2>
+      <Badge variant={status === 'approved' ? 'success' : 'secondary'}>
+        {status}
+      </Badge>
+    </Card>
+  );
+}
+```
+
+---
+
+## 🎨 Styling
+
+- Use **Tailwind CSS utility classes** only
+- Use spacing scale (`p-2`, `mt-4`, etc.)
+- Tokens: `rounded-2xl`, `shadow-sm`, `border`, `bg-muted`
+- Use `flex` and `grid` for layout
+
+---
+
+## 🧠 State Management
+
+- `useState` and `useEffect` for local state
+- **Zustand** for global/shared state (e.g., current project, role)
+- **Context** only for Auth/User state
+
+---
+
+## 🌐 Data Fetching
+
+- Use `fetch` or `axios` with async/await
+- Centralize logic in `lib/api.ts`
+
+```ts
+export async function fetchProjects() {
+  const res = await fetch('/api/projects');
+  return res.json();
+}
+```
+
+- Optional: Add `useSWR` or `React Query` if caching or revalidation is needed later
+
+---
+
+## 📱 Responsive Design
+
+- Use Tailwind’s mobile-first utilities
+- Breakpoints: `sm`, `md`, `lg`, `xl`
+- Example: `grid-cols-1 sm:grid-cols-2 lg:grid-cols-3`
+
+---
+
+## 🧭 Routing & Layout
+
+- Use **App Router** exclusively
+- Define nested `layout.tsx` files for each section
+- Protect `/dashboard` routes via layout middleware or `useUser` + redirect
+
+---
+
+## 🤮 Forms
+
+- Use **React Hook Form**
+- (Optional) Validate with **Zod**
+- Show loading states, disable buttons on submit
+
+---
+
+## 🔔 Notifications
+
+- Use `toast()` from Shadcn for in-app alerts
+
+```tsx
+toast({
+  title: "Upload complete",
+  description: "Your file has been saved.",
+})
+```
+
+---
+
+## 💬 UI Patterns
+
+| Feature | Pattern |
+| --- | --- |
+| Project Dashboard | Grid/List layout |
+| Editor Assignment | Modal with backdrop blur |
+| Chat Window | WhatsApp-style scrollable feed |
+| Upload | Drag & drop zone |
+| Notifications | Bell icon + dropdown |
+
+---
+
+## 🧼 Linting & Formatting
+
+- ESLint + Prettier
+- (Optional) Husky + lint-staged pre-commit hooks
+
+---
+
+## 🧲 Testing (Optional)
+
+- Unit Tests: **React Testing Library**
+- E2E Tests: **Cypress** or **Playwright**
+
+---
+
+## ✅ Summary
+
+- Shadcn + Tailwind = clean, reusable components
+- Role-based routing for `/editors` and `/youtubers`
+- Fully typed, component-first development
+- Responsive, accessible, and extendable UI

@@ -1,0 +1,200 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+### Edio – YouTuber–Editor Collaboration Platform
+
+---
+
+## 🔧 Tech Stack Overview
+
+- **Backend Platform:** Supabase (Postgres + Auth + Edge Functions)
+- **File Storage:** Amazon S3 (w/ Pre-signed URLs)
+- **Authentication:** Supabase OAuth (Google only)
+- **API Layer:** Next.js (App Router API routes or Edge Functions)
+- **Real-time:** Supabase Realtime (optional, for chat updates)
+- **Notifications:** DB-triggered in-app alerts (Push/email optional later)
+
+---
+
+## 🗂️ Database Schema (Postgres via Supabase)
+
+### 👤 `users`
+
+Stores YouTuber & Editor details.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| id | UUID (PK) | Supabase Auth user ID |
+| name | TEXT | Display name |
+| email | TEXT | Unique |
+| role | TEXT | `youtuber` or `editor` |
+| created_at | TIMESTAMP | Default now() |
+
+---
+
+### 📦 `projects`
+
+Represents a video editing project.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| id | UUID (PK) |  |
+| owner_id | UUID (FK) | `users.id`, YouTuber owner |
+| project_title | TEXT | Internal project name |
+| video_title | TEXT | Final YouTube video title |
+| description | TEXT | Final YouTube description |
+| thumbnail_url | TEXT | Current active thumbnail |
+| status | TEXT | `pending`, `approved`, etc. |
+| created_at | TIMESTAMP | Default now() |
+
+---
+
+### 🎮 `video_versions`
+
+Each edited version of a video.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| id | UUID (PK) |  |
+| project_id | UUID (FK) | References `projects.id` |
+| uploader_id | UUID (FK) | References `users.id` |
+| version_number | INT | Auto-increment per project |
+| file_url | TEXT | S3 upload link |
+| preview_url | TEXT | Pre-signed URL (if needed) |
+| created_at | TIMESTAMP | Default now() |
+
+---
+
+### 🖼️ `uploads`
+
+Tracks all file uploads (thumbnails, raw videos, etc.)
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| id | UUID (PK) |  |
+| user_id | UUID (FK) | Uploader |
+| file_url | TEXT | S3 URL |
+| file_type | TEXT | `video`, `thumbnail`, etc. |
+| created_at | TIMESTAMP | Default now() |
+
+---
+
+### 💬 `messages`
+
+Chat messages per project.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| id | UUID (PK) |  |
+| project_id | UUID (FK) | References `projects.id` |
+| sender_id | UUID (FK) | `users.id` |
+| content | TEXT | Message content |
+| type | TEXT | `text` or `system` |
+| created_at | TIMESTAMP |  |
+
+---
+
+### 🔗 `project_editors`
+
+Mapping of editors to projects.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| id | UUID (PK) |  |
+| project_id | UUID (FK) | References `projects.id` |
+| editor_id | UUID (FK) | References `users.id` |
+| created_at | TIMESTAMP | Default now() |
+
+Currently, one editor per project is allowed — this model supports multiple editors in the future.
+
+---
+
+### 🔔 `notifications`
+
+In-app notification system.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| id | UUID (PK) |  |
+| user_id | UUID (FK) | Who gets notified |
+| message | TEXT | Display message |
+| type | TEXT | `info`, `action`, etc. |
+| read | BOOLEAN | Has the user seen it? |
+| created_at | TIMESTAMP | Default now() |
+
+---
+
+## 🔐 Auth Strategy
+
+- ✅ **Supabase OAuth (Google only)**
+- ❌ No email/password
+- 🧠 Use Supabase's `user_metadata` to distinguish `youtuber` and `editor` roles
+
+---
+
+## 🔒 Row-Level Security (RLS)
+
+**RLS will be designed but turned on later.**
+
+Tables like `projects`, `video_versions`, `messages`, etc. will include `user_id` or `owner_id` columns for filtering.
+
+Examples:
+
+```sql
+-- Allow users to see only their own projects
+CREATE POLICY "User can read own projects"
+ON projects
+FOR SELECT
+USING (owner_id = auth.uid());
+```
+
+---
+
+## 📁 File Uploads (Amazon S3)
+
+- Store all files (videos, thumbnails, etc.) in S3
+- Organize via folders: `uploads/{userId}/{projectId}/...`
+- Use **pre-signed URLs** for secure uploads/previews
+- Example upload types:
+    - `raw_video`
+    - `edited_video`
+    - `thumbnail`
+
+---
+
+## 🔄 Video Upload Flow
+
+1. User initiates upload
+2. App requests a **pre-signed URL** from server
+3. User uploads file directly to S3
+4. App stores file metadata in `uploads` table
+
+---
+
+## 🧠 Business Logic
+
+- Versioning handled at backend via `version_number`
+- Project status transitions:
+    - `draft` → `in_review` → `needs_changes` → `approved`
+
+---
+
+## 🧲 API / Functions (Optional)
+
+- Built-in API routes via **Next.js App Router**
+- Could migrate to Supabase Edge Functions for:
+    - Triggering notifications
+    - Email alerts
+    - Generating pre-signed URLs
+
+---
+
+## ✅ Summary
+
+- Supabase as secure backend + auth
+- S3 for file storage
+- Strong versioning model
+- Scalable table schema with future growth in mind
+- RLS-ready from day one
