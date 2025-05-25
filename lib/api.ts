@@ -6,7 +6,7 @@ import type { PresignedUrlRequest, PresignedUrlResponse } from "@/lib/s3-service
 
 export async function fetchDashboardData() {
   try {
-    const supabase = createServerClient()
+    const supabase = await createServerClient()
 
     const { data: { user } } = await supabase.auth.getUser()
 
@@ -53,8 +53,6 @@ export async function fetchDashboardData() {
         )
       `)
       .eq("editor_id", user.id)
-      .order("project.updated_at", { ascending: false })
-      .limit(4)
       
     if (editedError) {
       console.error("Error fetching edited projects:", editedError)
@@ -95,7 +93,7 @@ export async function fetchDashboardData() {
 
 export async function fetchProjects() {
   try {
-    const supabase = createServerClient()
+    const supabase = await createServerClient()
 
     const { data: { user } } = await supabase.auth.getUser()
 
@@ -141,7 +139,6 @@ export async function fetchProjects() {
         )
       `)
       .eq("editor_id", user.id)
-      .order("project.updated_at", { ascending: false })
       
     if (editedError) {
       console.error("Error fetching edited projects:", editedError)
@@ -168,7 +165,7 @@ export async function fetchProjects() {
 
 export async function fetchProjectDetails(id: string) {
   try {
-    const supabase = createServerClient()
+    const supabase = await createServerClient()
 
     const { data: { user } } = await supabase.auth.getUser()
 

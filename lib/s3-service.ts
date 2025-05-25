@@ -48,7 +48,7 @@ export async function generatePresignedUrl(request: PresignedUrlRequest): Promis
     }
 
     // Authenticate user with Supabase
-    const supabase = createRouteClient()
+    const supabase = await createRouteClient()
     const { data: { user }, error: authError } = await supabase.auth.getUser()
 
     if (authError || !user) {

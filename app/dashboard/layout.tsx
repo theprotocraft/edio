@@ -17,6 +17,7 @@ import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 import type { Database } from "@/types/supabase"
 import DashboardLogout from "@/components/dashboard-logout"
+import { createServerClient } from "@/app/supabase-server"
 
 interface DashboardLayoutProps {
   children: ReactNode
@@ -24,7 +25,7 @@ interface DashboardLayoutProps {
 
 export default async function DashboardLayout({ children }: DashboardLayoutProps) {
   // Create Supabase client
-  const supabase = createServerComponentClient<Database>({ cookies: () => cookies() })
+  const supabase = await createServerClient()
   
   // Get user and profile data
   const { data: { user } } = await supabase.auth.getUser()

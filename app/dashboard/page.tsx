@@ -7,7 +7,7 @@ import { Plus, Video, Clock, CheckCircle, AlertCircle } from "lucide-react"
 
 export default async function DashboardPage() {
   // Initialize Supabase client
-  const supabase = createServerClient()
+  const supabase = await createServerClient()
 
   // Get user
   try {
@@ -73,8 +73,6 @@ export default async function DashboardPage() {
           )
         `)
         .eq("editor_id", user.id)
-        .order("project.updated_at", { ascending: false })
-        .limit(4)
 
       if (error) {
         console.error("Edited projects fetch error:", error)

@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(new URL("/login?error=no_code", request.url))
     }
 
-    const supabase = createRouteClient()
+    const supabase = await createRouteClient()
 
     const { data, error } = await supabase.auth.exchangeCodeForSession(code)
 

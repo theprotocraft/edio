@@ -3,9 +3,9 @@ import { cookies } from "next/headers"
 import type { Database } from "@/types/supabase"
 
 // Route handler Supabase client
-export const createRouteClient = () => {
+export const createRouteClient = async () => {
   try {
-    const cookieStore = cookies()
+    const cookieStore = await cookies()
 
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
       console.error("Missing Supabase environment variables in route handler")
