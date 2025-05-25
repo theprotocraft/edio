@@ -11,10 +11,6 @@ export default async function ProjectsPage() {
   try {
     const { user, projects, isCreator } = await fetchProjects()
 
-    if (!user) {
-      redirect("/login")
-    }
-
     return (
       <div className="flex flex-col space-y-6">
         <div className="flex items-center justify-between">
