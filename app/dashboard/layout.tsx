@@ -14,6 +14,7 @@ import {
 } from "lucide-react"
 import { createServerComponentClient } from "@supabase/auth-helpers-nextjs"
 import { cookies } from "next/headers"
+import { redirect } from "next/navigation"
 import type { Database } from "@/types/supabase"
 import DashboardLogout from "@/components/dashboard-logout"
 
@@ -23,23 +24,34 @@ interface DashboardLayoutProps {
 
 export default async function DashboardLayout({ children }: DashboardLayoutProps) {
   // Create Supabase client
-  const supabase = createServerComponentClient<Database>({ cookies })
+  const supabase = createServerComponentClient<Database>({ cookies: () => cookies() })
   
-  // Get user session and profile data
-  const { data: { session } } = await supabase.auth.getSession()
+  // Get user and profile data
+  const { data: { user } } = await supabase.auth.getUser()
+  
+  if (!user) {
+    redirect("/login")
+  }
+  
   let userRole = "editor" // Default role
 
-  if (session?.user) {
+  try {
     // Fetch the user's role from the database
-    const { data: userData } = await supabase
+    const { data: userData, error } = await supabase
       .from("users")
       .select("role")
-      .eq("id", session.user.id)
+      .eq("id", user.id)
       .single()
+    
+    if (error) {
+      console.error("Error fetching user role:", error)
+    }
     
     if (userData) {
       userRole = userData.role
     }
+  } catch (error) {
+    console.error("Failed to fetch user role:", error)
   }
 
   return (

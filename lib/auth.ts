@@ -50,12 +50,15 @@ export function SupabaseProvider({
 
       const getUser = async () => {
         try {
-          const { data } = await supabaseClient.auth.getSession()
-          if (data.session) {
-            setUser(data.session.user)
+          const { data, error } = await supabaseClient.auth.getUser()
+          if (error) {
+            throw error
+          }
+          if (data.user) {
+            setUser(data.user)
           }
         } catch (err) {
-          console.error("Error getting session:", err)
+          console.error("Error getting user:", err)
           setError(err instanceof Error ? err : new Error(String(err)))
         } finally {
           setLoading(false)

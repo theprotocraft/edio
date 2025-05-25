@@ -13,6 +13,7 @@ export const createServerClient = () => {
       return {
         auth: {
           getSession: () => Promise.resolve({ data: { session: null }, error: null }),
+          getUser: () => Promise.resolve({ data: { user: null }, error: null }),
         },
         from: () => ({
           select: () => ({
@@ -30,17 +31,14 @@ export const createServerClient = () => {
       } as any
     }
 
-    return createServerComponentClient<Database>({
-      cookies: () => cookieStore,
-      supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
-      supabaseKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    })
+    return createServerComponentClient<Database>({ cookies: () => cookieStore })
   } catch (error) {
     console.error("Error creating server client:", error)
     // Return a minimal client that won't throw errors
     return {
       auth: {
         getSession: () => Promise.resolve({ data: { session: null }, error: null }),
+        getUser: () => Promise.resolve({ data: { user: null }, error: null }),
       },
       from: () => ({
         select: () => ({

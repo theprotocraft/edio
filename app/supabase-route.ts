@@ -14,6 +14,7 @@ export const createRouteClient = () => {
         auth: {
           getSession: () => Promise.resolve({ data: { session: null }, error: null }),
           exchangeCodeForSession: () => Promise.resolve({ data: null, error: null }),
+          getUser: () => Promise.resolve({ data: { user: null }, error: null }),
         },
         from: () => ({
           select: () => ({
@@ -26,11 +27,7 @@ export const createRouteClient = () => {
       } as any
     }
 
-    return createRouteHandlerClient<Database>({
-      cookies: () => cookieStore,
-      supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
-      supabaseKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    })
+    return createRouteHandlerClient<Database>({ cookies: () => cookieStore })
   } catch (error) {
     console.error("Error creating route client:", error)
     // Return a minimal client that won't throw errors
@@ -38,6 +35,7 @@ export const createRouteClient = () => {
       auth: {
         getSession: () => Promise.resolve({ data: { session: null }, error: null }),
         exchangeCodeForSession: () => Promise.resolve({ data: null, error: null }),
+        getUser: () => Promise.resolve({ data: { user: null }, error: null }),
       },
       from: () => ({
         select: () => ({

@@ -24,7 +24,15 @@ export async function GET(request: NextRequest) {
 
     try {
       // Check if user profile exists
-      const { data: user } = await supabase.from("users").select().eq("id", data.user.id).single()
+      const { data: user, error: userError } = await supabase
+        .from("users")
+        .select()
+        .eq("id", data.user.id)
+        .single()
+        
+      if (userError && userError.code !== "PGRST116") {
+        console.error("Error checking for existing user:", userError)
+      }
 
       // If user doesn't exist, create it
       if (!user) {

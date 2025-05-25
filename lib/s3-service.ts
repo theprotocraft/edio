@@ -49,9 +49,9 @@ export async function generatePresignedUrl(request: PresignedUrlRequest): Promis
 
     // Authenticate user with Supabase
     const supabase = createRouteClient()
-    const { data: sessionData } = await supabase.auth.getSession()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
 
-    if (!sessionData?.session?.user) {
+    if (authError || !user) {
       return {
         uploadUrl: "",
         fileUrl: "",
@@ -59,7 +59,7 @@ export async function generatePresignedUrl(request: PresignedUrlRequest): Promis
       }
     }
 
-    const userId = sessionData.session.user.id
+    const userId = user.id
 
     // Validate user has access to the project
     const { data: project, error: projectError } = await supabase
