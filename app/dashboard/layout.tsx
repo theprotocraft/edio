@@ -62,18 +62,18 @@ export default async function DashboardLayout({ children }: DashboardLayoutProps
                 </Button>
               </Link>
               {userRole === "editor" && (
-                <Link href="/dashboard/editors">
+                <Link href="/dashboard/youtubers">
                   <Button variant="ghost" className="w-full justify-start">
                     <Users className="mr-2 h-5 w-5" />
-                    Editors
+                    Youtubers
                   </Button>
                 </Link>
               )}
               {userRole === "youtuber" && (
-                <Link href="/dashboard/youtubers">
+                <Link href="/dashboard/editors">
                   <Button variant="ghost" className="w-full justify-start">
                     <Users className="mr-2 h-5 w-5" />
-                    YouTubers
+                    Editors
                   </Button>
                 </Link>
               )}
