@@ -17,7 +17,7 @@ import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 import type { Database } from "@/types/supabase"
 import DashboardLogout from "@/components/dashboard-logout"
-import { createServerClient } from "@/app/supabase-server"
+import { createServerClient } from "@/lib/supabase-server"
 
 interface DashboardLayoutProps {
   children: ReactNode

@@ -2,7 +2,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { Plus, Video, Clock, CheckCircle, AlertCircle } from "lucide-react"
-import { fetchDashboardData } from "@/lib/api"
+import { fetchDashboardData } from "@/lib/server-api"
 import { redirect } from "next/navigation"
 import { ProjectCard } from "@/components/custom/project-card"
 

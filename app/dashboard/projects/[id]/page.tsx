@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation"
-import { fetchProjectDetails } from "@/lib/api"
+import { fetchProjectDetails } from "@/lib/server-api"
 import { ProjectHeader } from "@/components/custom/project-header"
 import { ProjectTabs } from "@/components/custom/project-tabs"
 
@@ -20,13 +20,13 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
 
     return (
       <div>
-        <ProjectHeader project={project} userRole={userRole} />
+        <ProjectHeader project={project} userRole={userRole as "creator" | "editor"} />
         <ProjectTabs
           project={project}
           uploads={uploads || []}
           versions={versions || []}
           messages={messages || []}
-          userRole={userRole}
+          userRole={userRole as "creator" | "editor"}
           userId={userId}
         />
       </div>

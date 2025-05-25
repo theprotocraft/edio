@@ -1,115 +1,17 @@
-import { createServerClient } from "@/app/supabase-server"
 import { redirect } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { Plus, Video, Clock, CheckCircle, AlertCircle } from "lucide-react"
+import { fetchDashboardData } from "@/lib/server-api"
 
 export default async function DashboardPage() {
-  // Initialize Supabase client
-  const supabase = await createServerClient()
-
-  // Get user
   try {
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-
-    // Check if user is authenticated
-    if (authError || !user) {
-      console.error("Authentication error:", authError)
+    const { user: userData, projects, notifications, isCreator } = await fetchDashboardData()
+    
+    if (!userData) {
       redirect("/login")
     }
-
-    // Safely fetch user profile
-    let userData = null
-    try {
-      const { data, error: userError } = await supabase
-        .from("users")
-        .select("*")
-        .eq("id", user.id)
-        .single()
-
-      if (userError) {
-        console.error("User fetch error:", userError)
-      } else {
-        userData = data
-      }
-    } catch (error) {
-      console.error("Error fetching user:", error)
-    }
-
-    // Fetch owned projects
-    let ownedProjects = []
-    try {
-      const { data, error } = await supabase
-        .from("projects")
-        .select(`
-          *,
-          owner:users!projects_owner_id_fkey(id, name, email),
-          editors:project_editors(editor_id, editor:users(id, name, email))
-        `)
-        .eq("owner_id", user.id)
-        .order("updated_at", { ascending: false })
-        .limit(4)
-
-      if (error) {
-        console.error("Owned projects fetch error:", error)
-      } else {
-        ownedProjects = data || []
-      }
-    } catch (error) {
-      console.error("Error fetching owned projects:", error)
-    }
-    
-    // Fetch projects where user is an editor
-    let editedProjects = []
-    try {
-      const { data, error } = await supabase
-        .from("project_editors")
-        .select(`
-          project:projects(
-            *,
-            owner:users!projects_owner_id_fkey(id, name, email),
-            editors:project_editors(editor_id, editor:users(id, name, email))
-          )
-        `)
-        .eq("editor_id", user.id)
-
-      if (error) {
-        console.error("Edited projects fetch error:", error)
-      } else {
-        editedProjects = data?.map((item: { project: any }) => item.project) || []
-      }
-    } catch (error) {
-      console.error("Error fetching edited projects:", error)
-    }
-    
-    // Combine and sort projects
-    const projects = [
-      ...ownedProjects,
-      ...editedProjects
-    ].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
-     .slice(0, 4);
-
-    // Fetch notifications - handle potential errors
-    let notifications = []
-    try {
-      const { data, error } = await supabase
-        .from("notifications")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false })
-        .limit(5)
-
-      if (error) {
-        console.error("Notifications fetch error:", error)
-      } else {
-        notifications = data || []
-      }
-    } catch (error) {
-      console.error("Error fetching notifications:", error)
-    }
-
-    const isCreator = userData?.role === "youtuber"
 
     return (
       <div>

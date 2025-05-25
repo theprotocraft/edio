@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Plus, Search } from "lucide-react"
-import { fetchProjects } from "@/lib/api"
+import { fetchProjects } from "@/lib/server-api"
 import { redirect } from "next/navigation"
 import { ProjectCard } from "@/components/custom/project-card"
 
