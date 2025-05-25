@@ -10,13 +10,38 @@ import {
   Settings,
   HelpCircle,
   Users,
+  LogOut,
 } from "lucide-react"
+import { createServerComponentClient } from "@supabase/auth-helpers-nextjs"
+import { cookies } from "next/headers"
+import type { Database } from "@/types/supabase"
+import DashboardLogout from "@/components/dashboard-logout"
 
 interface DashboardLayoutProps {
   children: ReactNode
 }
 
-export default function DashboardLayout({ children }: DashboardLayoutProps) {
+export default async function DashboardLayout({ children }: DashboardLayoutProps) {
+  // Create Supabase client
+  const supabase = createServerComponentClient<Database>({ cookies })
+  
+  // Get user session and profile data
+  const { data: { session } } = await supabase.auth.getSession()
+  let userRole = "editor" // Default role
+
+  if (session?.user) {
+    // Fetch the user's role from the database
+    const { data: userData } = await supabase
+      .from("users")
+      .select("role")
+      .eq("id", session.user.id)
+      .single()
+    
+    if (userData) {
+      userRole = userData.role
+    }
+  }
+
   return (
     <div className="flex min-h-screen flex-col">
       <DashboardNavbar />
@@ -36,42 +61,23 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                   Projects
                 </Button>
               </Link>
-              <Link href="/dashboard/editors">
-                <Button variant="ghost" className="w-full justify-start">
-                  <Users className="mr-2 h-5 w-5" />
-                  Editors
-                </Button>
-              </Link>
-              <Link href="/dashboard/youtubers">
-                <Button variant="ghost" className="w-full justify-start">
-                  <Users className="mr-2 h-5 w-5" />
-                  YouTubers
-                </Button>
-              </Link>
-              <Link href="/dashboard/messages">
-                <Button variant="ghost" className="w-full justify-start">
-                  <MessageSquare className="mr-2 h-5 w-5" />
-                  Messages
-                </Button>
-              </Link>
-              <Link href="/dashboard/notifications">
-                <Button variant="ghost" className="w-full justify-start">
-                  <Bell className="mr-2 h-5 w-5" />
-                  Notifications
-                </Button>
-              </Link>
-              <Link href="/dashboard/settings">
-                <Button variant="ghost" className="w-full justify-start">
-                  <Settings className="mr-2 h-5 w-5" />
-                  Settings
-                </Button>
-              </Link>
-              <Link href="/help">
-                <Button variant="ghost" className="w-full justify-start">
-                  <HelpCircle className="mr-2 h-5 w-5" />
-                  Help & Support
-                </Button>
-              </Link>
+              {userRole === "editor" && (
+                <Link href="/dashboard/editors">
+                  <Button variant="ghost" className="w-full justify-start">
+                    <Users className="mr-2 h-5 w-5" />
+                    Editors
+                  </Button>
+                </Link>
+              )}
+              {userRole === "youtuber" && (
+                <Link href="/dashboard/youtubers">
+                  <Button variant="ghost" className="w-full justify-start">
+                    <Users className="mr-2 h-5 w-5" />
+                    YouTubers
+                  </Button>
+                </Link>
+              )}
+              <DashboardLogout />
             </nav>
           </div>
         </aside>
