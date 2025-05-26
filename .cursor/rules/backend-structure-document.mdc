@@ -111,6 +111,31 @@ Currently, one editor per project is allowed — this model supports multiple ed
 
 ---
 
+
+### ✉️ `editor_invites`
+
+Tracks invitations between creators (YouTubers) and editors — independent of projects.
+
+| Column | Type | Notes |
+
+| --- | --- | --- |
+
+| id | UUID (PK) |  |
+
+| creator_id | UUID (FK) | References `users.id` (the YouTuber who sends the invite) |
+
+| editor_id | UUID (FK) | References `users.id` — nullable until the invite is accepted |
+
+| editor_email | TEXT | Email address the invitation was sent to |
+
+| status | TEXT | `pending`, `accepted`, `declined`, `revoked` |
+
+| created_at | TIMESTAMP | Default `now()` |
+
+| accepted_at | TIMESTAMP | Nullable — set when the invite is accepted |
+
+---
+
 ### 🔔 `notifications`
 
 In-app notification system.

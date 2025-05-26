@@ -66,6 +66,20 @@ CREATE TABLE uploads (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Create editor invites table
+CREATE TABLE editor_invites (
+  id            UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  creator_id    UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  editor_id     UUID REFERENCES users(id) ON DELETE SET NULL,
+  editor_email  TEXT NOT NULL,
+  status        TEXT NOT NULL DEFAULT 'pending'
+                CHECK (status IN ('pending','accepted','declined','revoked')),
+  created_at    TIMESTAMPTZ DEFAULT NOW(),
+  accepted_at   TIMESTAMPTZ
+);
+CREATE INDEX ON editor_invites (creator_id);
+CREATE INDEX ON editor_invites (editor_email);
+
 -- Create messages table
 CREATE TABLE messages (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -225,3 +239,12 @@ CREATE TRIGGER update_projects_modtime
 BEFORE UPDATE ON projects
 FOR EACH ROW
 EXECUTE PROCEDURE update_modified_column();
+
+CREATE POLICY "Creator manages own invites"
+  ON editor_invites FOR ALL USING (creator_id = auth.uid());
+
+CREATE POLICY "Editor reads own invites"
+  ON editor_invites FOR SELECT USING (
+    editor_id = auth.uid()
+    OR (editor_id IS NULL AND lower(editor_email) = lower(auth.jwt() ->> 'email'))
+);
