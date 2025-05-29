@@ -126,7 +126,15 @@ export function ProjectHeader({ project, userRole }: ProjectHeaderProps) {
             <h1 className="text-3xl font-bold tracking-tight">{project.project_title}</h1>
             {getStatusBadge()}
           </div>
-          <p className="mt-2 text-muted-foreground">{project.description || "No description provided"}</p>
+          {project.hashtags && (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {project.hashtags.split(/\s+/).map((tag: string, index: number) => (
+                <Badge key={index} variant="secondary" className="text-xs">
+                  {tag.startsWith('#') ? tag : `#${tag}`}
+                </Badge>
+              ))}
+            </div>
+          )}
           <div className="mt-4 flex flex-wrap items-center gap-4">
             <div className="flex items-center text-sm">
               <Clock className="mr-2 h-4 w-4 text-muted-foreground" />

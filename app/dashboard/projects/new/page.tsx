@@ -16,7 +16,8 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 
 const projectSchema = z.object({
   title: z.string().min(1, "Project title is required"),
-  description: z.string().optional(),
+  videoTitle: z.string().min(1, "Video title is required"),
+  description: z.string().min(1, "Video description is required"),
 })
 
 type ProjectFormValues = z.infer<typeof projectSchema>
@@ -31,6 +32,7 @@ export default function NewProjectPage() {
     resolver: zodResolver(projectSchema),
     defaultValues: {
       title: "",
+      videoTitle: "",
       description: "",
     },
   })
@@ -50,7 +52,8 @@ export default function NewProjectPage() {
     try {
       const projectId = await createProject({
         title: data.title,
-        description: data.description || "",
+        videoTitle: data.videoTitle,
+        description: data.description,
       })
 
       toast({
@@ -88,9 +91,22 @@ export default function NewProjectPage() {
                 name="title"
                 render={({ field }) => (
                   <FormItem className="space-y-2">
-                    <FormLabel>Project Title</FormLabel>
+                    <FormLabel>Project Title (Internal)</FormLabel>
                     <FormControl>
-                      <Input placeholder="Enter project title" {...field} />
+                      <Input placeholder="Enter project title for internal tracking" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="videoTitle"
+                render={({ field }) => (
+                  <FormItem className="space-y-2">
+                    <FormLabel>Video Title</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Enter video title" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -101,9 +117,9 @@ export default function NewProjectPage() {
                 name="description"
                 render={({ field }) => (
                   <FormItem className="space-y-2">
-                    <FormLabel>Description</FormLabel>
+                    <FormLabel>Video Description</FormLabel>
                     <FormControl>
-                      <Textarea placeholder="Describe your project, requirements, and goals" rows={5} {...field} />
+                      <Textarea placeholder="Enter your YouTube video description" rows={5} {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

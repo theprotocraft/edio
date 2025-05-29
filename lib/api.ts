@@ -23,7 +23,17 @@ export async function fetchProject(id: string) {
   return project
 }
 
-export async function createProject({ title, description }: { title: string; description: string }) {
+export async function createProject({ 
+  title, 
+  videoTitle, 
+  description,
+  hashtags 
+}: { 
+  title: string; 
+  videoTitle?: string;
+  description?: string;
+  hashtags?: string;
+}) {
   const supabase = createClient()
 
   // Get user profile to determine if creator or editor
@@ -46,7 +56,9 @@ export async function createProject({ title, description }: { title: string; des
     .from("projects")
     .insert({
       project_title: title,
+      video_title: videoTitle,
       description,
+      hashtags,
       owner_id: userData.role === "youtuber" ? (await supabase.auth.getUser()).data.user?.id : null,
       status: "pending",
     })
@@ -71,14 +83,26 @@ export async function createProject({ title, description }: { title: string; des
   return data[0].id
 }
 
-export async function updateProject(id: string, { title, description }: { title: string; description: string }) {
+export async function updateProject(id: string, { 
+  title, 
+  videoTitle, 
+  description,
+  hashtags
+}: { 
+  title: string; 
+  videoTitle?: string; 
+  description?: string;
+  hashtags?: string;
+}) {
   const supabase = createClient()
 
   const { error } = await supabase
     .from("projects")
     .update({
       project_title: title,
+      video_title: videoTitle,
       description,
+      hashtags,
     })
     .eq("id", id)
 

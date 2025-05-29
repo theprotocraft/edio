@@ -168,7 +168,7 @@ export function FileUpload({ project, uploads, userRole }: FileUploadProps) {
               )}
 
               <div className="space-y-2">
-                <Label htmlFor="description">Description (Optional)</Label>
+                <Label htmlFor="description">File Description (Optional)</Label>
                 <Input
                   id="description"
                   placeholder="Add a description for this file"

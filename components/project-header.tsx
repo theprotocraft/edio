@@ -135,7 +135,6 @@ export default function ProjectHeader({ project, editors, userRole }: ProjectHea
             <h1 className="text-3xl font-bold">{project.project_title}</h1>
             {getStatusBadge()}
           </div>
-          <p className="mt-2 text-gray-500 dark:text-gray-400">{project.description || "No description provided"}</p>
           <div className="mt-4 flex flex-wrap items-center gap-4">
             <div className="flex items-center text-sm">
               <Clock className="mr-2 h-4 w-4 text-gray-500" />

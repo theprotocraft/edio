@@ -22,7 +22,8 @@ interface EditProjectPageProps {
 
 const projectSchema = z.object({
   title: z.string().min(1, "Project title is required"),
-  description: z.string().optional(),
+  videoTitle: z.string().min(1, "Video title is required"),
+  description: z.string().min(1, "Video description is required"),
 })
 
 type ProjectFormValues = z.infer<typeof projectSchema>
@@ -39,6 +40,7 @@ export default function EditProjectPage({ params }: EditProjectPageProps) {
     resolver: zodResolver(projectSchema),
     defaultValues: {
       title: "",
+      videoTitle: "",
       description: "",
     },
   })
@@ -57,6 +59,7 @@ export default function EditProjectPage({ params }: EditProjectPageProps) {
 
         form.reset({
           title: project.project_title || "",
+          videoTitle: project.video_title || "",
           description: project.description || "",
         })
       } catch (error: any) {
@@ -89,7 +92,8 @@ export default function EditProjectPage({ params }: EditProjectPageProps) {
     try {
       await updateProject(id, {
         title: data.title,
-        description: data.description || "",
+        videoTitle: data.videoTitle,
+        description: data.description,
       })
 
       toast({
@@ -138,9 +142,22 @@ export default function EditProjectPage({ params }: EditProjectPageProps) {
                 name="title"
                 render={({ field }) => (
                   <FormItem className="space-y-2">
-                    <FormLabel>Project Title</FormLabel>
+                    <FormLabel>Project Title (Internal)</FormLabel>
                     <FormControl>
-                      <Input placeholder="Enter project title" {...field} />
+                      <Input placeholder="Enter project title for internal tracking" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="videoTitle"
+                render={({ field }) => (
+                  <FormItem className="space-y-2">
+                    <FormLabel>Video Title</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Enter video title" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -151,9 +168,9 @@ export default function EditProjectPage({ params }: EditProjectPageProps) {
                 name="description"
                 render={({ field }) => (
                   <FormItem className="space-y-2">
-                    <FormLabel>Description</FormLabel>
+                    <FormLabel>Video Description</FormLabel>
                     <FormControl>
-                      <Textarea placeholder="Describe your project, requirements, and goals" rows={5} {...field} />
+                      <Textarea placeholder="Enter your YouTube video description" rows={5} {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

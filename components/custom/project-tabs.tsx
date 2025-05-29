@@ -2,9 +2,9 @@
 
 import { useState } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { FileUpload } from "@/components/custom/file-upload"
 import { VideoVersions } from "@/components/custom/video-versions"
 import { ProjectChat } from "@/components/custom/project-chat"
+import { ProjectDetails } from "@/components/custom/project-details"
 
 interface ProjectTabsProps {
   project: any
@@ -16,17 +16,17 @@ interface ProjectTabsProps {
 }
 
 export function ProjectTabs({ project, uploads, versions, messages, userRole, userId }: ProjectTabsProps) {
-  const [activeTab, setActiveTab] = useState("files")
+  const [activeTab, setActiveTab] = useState("details")
 
   return (
-    <Tabs defaultValue="files" onValueChange={setActiveTab} className="w-full">
+    <Tabs defaultValue="details" onValueChange={setActiveTab} className="w-full">
       <TabsList className="grid w-full grid-cols-3">
-        <TabsTrigger value="files">Files & Assets</TabsTrigger>
+        <TabsTrigger value="details">Video Details</TabsTrigger>
         <TabsTrigger value="versions">Video Versions</TabsTrigger>
         <TabsTrigger value="chat">Chat</TabsTrigger>
       </TabsList>
-      <TabsContent value="files" className="mt-6">
-        <FileUpload project={project} uploads={uploads} userRole={userRole} />
+      <TabsContent value="details" className="mt-6">
+        <ProjectDetails project={project} userRole={userRole} uploads={uploads} />
       </TabsContent>
       <TabsContent value="versions" className="mt-6">
         <VideoVersions project={project} versions={versions} userRole={userRole} />
