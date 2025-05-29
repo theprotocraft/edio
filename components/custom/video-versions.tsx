@@ -309,13 +309,6 @@ export function VideoVersions({ project, versions, userRole }: VideoVersionsProp
         <div className="flex flex-col items-center justify-center rounded-lg border border-dashed p-8 text-center">
           <Video className="h-10 w-10 text-muted-foreground mb-4" />
           <h3 className="text-lg font-medium">No video versions yet</h3>
-          {userRole === "editor" ? (
-            <p className="text-sm text-muted-foreground mt-1 mb-4">Add your first video version to get feedback</p>
-          ) : (
-            <p className="text-sm text-muted-foreground mt-1 mb-4">
-              Waiting for the editor to upload the first version
-            </p>
-          )}
           {userRole === "editor" && (
             <Button
               onClick={() => document.getElementById("videoUrl")?.focus()}
