@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { useToast } from "@/hooks/use-toast"
 import { useSupabase } from "@/hooks/useUser"
-import { updateProject, uploadFile } from "@/lib/api"
+import { updateProject, uploadFile, getPresignedViewUrl } from "@/lib/api"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -38,9 +38,31 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
   const [selectedThumbnail, setSelectedThumbnail] = useState<File | null>(null)
   const [uploadingThumbnail, setUploadingThumbnail] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
+  const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null)
   const { supabase, user } = useSupabase()
   const router = useRouter()
   const { toast } = useToast()
+
+  // Find thumbnail from uploads (if any)
+  const thumbnailUpload = uploads.find(upload => upload.file_type === "thumbnail");
+
+  // Get presigned URL for thumbnail
+  useEffect(() => {
+    if (thumbnailUpload?.file_url) {
+      const getUrl = async () => {
+        try {
+          const presignedUrl = await getPresignedViewUrl(thumbnailUpload.file_url);
+          setThumbnailUrl(presignedUrl);
+        } catch (error) {
+          console.error("Failed to get presigned URL for thumbnail:", error);
+          // Set a placeholder or error image
+          setThumbnailUrl(null);
+        }
+      };
+      
+      getUrl();
+    }
+  }, [thumbnailUpload]);
 
   const form = useForm<ProjectDetailsFormValues>({
     resolver: zodResolver(projectDetailsSchema),
@@ -150,9 +172,6 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
     }
   }
 
-  // Find thumbnail from uploads (if any)
-  const thumbnailUpload = uploads.find(upload => upload.file_type === "thumbnail");
-
   return (
     <div className="space-y-6">
       <Card className="shadow-md">
@@ -198,14 +217,23 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
                   <div className="mb-4">
                     <p className="text-sm font-medium mb-2">Current Thumbnail</p>
                     <div className="flex items-start space-x-4">
-                      <div className="relative h-36 w-64 overflow-hidden rounded-md border">
-                        <Image 
-                          src={thumbnailUpload.file_url} 
-                          alt="Current thumbnail"
-                          fill
-                          className="object-cover"
-                        />
-                      </div>
+                      {thumbnailUrl ? (
+                        <div className="relative h-36 w-64 overflow-hidden rounded-md border">
+                          <Image 
+                            src={thumbnailUrl} 
+                            alt="Current thumbnail"
+                            fill
+                            className="object-cover"
+                          />
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-center h-36 w-64 border rounded-md bg-muted/30">
+                          <div className="text-center">
+                            <ImageIcon className="h-10 w-10 text-muted-foreground mx-auto mb-2" />
+                            <p className="text-sm text-muted-foreground">Loading thumbnail...</p>
+                          </div>
+                        </div>
+                      )}
                       <div>
                         <p className="text-sm font-medium">{thumbnailUpload.file_name}</p>
                         <p className="text-xs text-muted-foreground">Uploaded: {new Date(thumbnailUpload.created_at).toLocaleDateString()}</p>
@@ -332,4 +360,4 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
       </Card>
     </div>
   )
-} 
+}

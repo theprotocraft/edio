@@ -373,3 +373,32 @@ export async function sendMessage({
     throw error
   }
 }
+
+export async function getPresignedViewUrl(fileUrl: string) {
+  try {
+    // Extract the file path from the full S3 URL
+    const url = new URL(fileUrl);
+    const filePath = url.pathname.startsWith('/') ? url.pathname.substring(1) : url.pathname;
+    
+    // Call the API to get a presigned URL for viewing
+    const response = await fetch("/api/uploads/get-presigned-url", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ filePath }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || "Failed to get view URL");
+    }
+
+    const { presignedUrl } = await response.json();
+    return presignedUrl;
+  } catch (error: any) {
+    console.error("Error getting presigned view URL:", error);
+    // Return the original URL as fallback (won't work, but prevents UI errors)
+    return fileUrl;
+  }
+}

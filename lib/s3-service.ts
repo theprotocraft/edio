@@ -1,5 +1,5 @@
 import { createRouteClient } from "@/app/supabase-route"
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3"
+import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3"
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner"
 
 export type PresignedUrlRequest = {
@@ -12,6 +12,15 @@ export type PresignedUrlRequest = {
 export type PresignedUrlResponse = {
   uploadUrl: string
   fileUrl: string
+  error?: string
+}
+
+export type GetPresignedViewUrlRequest = {
+  filePath: string
+}
+
+export type GetPresignedViewUrlResponse = {
+  presignedUrl: string
   error?: string
 }
 
@@ -135,6 +144,75 @@ export async function generatePresignedUrl(request: PresignedUrlRequest): Promis
 }
 
 /**
+ * Generate a pre-signed URL for viewing S3 files
+ * This is a server-side function to be used in API Routes or Server Actions
+ */
+export async function generatePresignedViewUrl(request: GetPresignedViewUrlRequest): Promise<GetPresignedViewUrlResponse> {
+  try {
+    // Validate environment variables
+    const bucketName = process.env.AWS_S3_BUCKET_NAME
+    const region = process.env.AWS_REGION
+    const accessKeyId = process.env.AWS_ACCESS_KEY_ID
+    const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY
+
+    if (!bucketName || !region || !accessKeyId || !secretAccessKey) {
+      console.error("Missing AWS environment variables")
+      return {
+        presignedUrl: "",
+        error: "Server configuration error: Missing AWS credentials",
+      }
+    }
+
+    // Validate request
+    const { filePath } = request
+
+    if (!filePath) {
+      return {
+        presignedUrl: "",
+        error: "Missing file path",
+      }
+    }
+
+    // Authenticate user with Supabase
+    const supabase = await createRouteClient()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      return {
+        presignedUrl: "",
+        error: "User not authenticated",
+      }
+    }
+
+    // Initialize S3 client
+    const s3Client = new S3Client({
+      region,
+      credentials: {
+        accessKeyId,
+        secretAccessKey,
+      },
+    })
+
+    // Create command for S3 GET operation
+    const command = new GetObjectCommand({
+      Bucket: bucketName,
+      Key: filePath,
+    })
+
+    // Generate presigned URL for viewing
+    const presignedUrl = await getSignedUrl(s3Client, command, { expiresIn: 3600 }) // 1 hour expiry
+
+    return { presignedUrl }
+  } catch (error: any) {
+    console.error("Error generating presigned view URL:", error)
+    return {
+      presignedUrl: "",
+      error: error.message || "Failed to generate view URL",
+    }
+  }
+}
+
+/**
  * API Route handler to generate presigned URLs
  */
 export async function apiGeneratePresignedUrl(req: Request): Promise<Response> {
@@ -175,6 +253,49 @@ export async function apiGeneratePresignedUrl(req: Request): Promise<Response> {
     })
   } catch (error: any) {
     console.error("Error in presigned URL API route:", error)
+    return new Response(JSON.stringify({ error: error.message || "Internal server error" }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    })
+  }
+}
+
+/**
+ * API Route handler to generate presigned URLs for viewing
+ */
+export async function apiGeneratePresignedViewUrl(req: Request): Promise<Response> {
+  if (req.method !== "POST") {
+    return new Response(JSON.stringify({ error: "Method not allowed" }), {
+      status: 405,
+      headers: { "Content-Type": "application/json" },
+    })
+  }
+
+  try {
+    const body = (await req.json()) as GetPresignedViewUrlRequest
+    const result = await generatePresignedViewUrl(body)
+
+    if (result.error) {
+      let statusCode = 500
+
+      if (result.error.includes("not authenticated")) {
+        statusCode = 401
+      } else if (result.error.includes("Missing file path")) {
+        statusCode = 400
+      }
+
+      return new Response(JSON.stringify({ error: result.error }), {
+        status: statusCode,
+        headers: { "Content-Type": "application/json" },
+      })
+    }
+
+    return new Response(JSON.stringify(result), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    })
+  } catch (error: any) {
+    console.error("Error in presigned view URL API route:", error)
     return new Response(JSON.stringify({ error: error.message || "Internal server error" }), {
       status: 500,
       headers: { "Content-Type": "application/json" },
