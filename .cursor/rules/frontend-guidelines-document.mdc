@@ -1,7 +1,7 @@
 ---
 description: 
 globs: 
-alwaysApply: false
+alwaysApply: true
 ---
 # 🎨 **Frontend Guidelines – Edio**
 
@@ -16,7 +16,7 @@ This document defines the standards and practices for building a clean, performa
 - **Framework:** Next.js (App Router)
 - **Styling:** Tailwind CSS
 - **UI Kit:** Shadcn/UI
-- **Icons:** [Lucide Icons](https://lucide.dev/)
+- **Icons:** [Lucide Icons](mdc:https:/lucide.dev)
 
 ---
 

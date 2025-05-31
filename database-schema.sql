@@ -2,13 +2,13 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- Drop existing tables if they exist (for clean setup)
-DROP TABLE IF EXISTS notifications;
-DROP TABLE IF EXISTS messages;
-DROP TABLE IF EXISTS video_versions;
-DROP TABLE IF EXISTS uploads;
-DROP TABLE IF EXISTS project_editors;
-DROP TABLE IF EXISTS projects;
-DROP TABLE IF EXISTS users;
+DROP TABLE IF EXISTS notifications CASCADE;
+DROP TABLE IF EXISTS messages CASCADE;
+DROP TABLE IF EXISTS video_versions CASCADE;
+DROP TABLE IF EXISTS uploads CASCADE;
+DROP TABLE IF EXISTS project_editors CASCADE;
+DROP TABLE IF EXISTS projects CASCADE;
+DROP TABLE IF EXISTS users CASCADE;
 
 -- Create users table
 CREATE TABLE users (
