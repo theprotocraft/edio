@@ -95,10 +95,11 @@ CREATE TABLE notifications (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   message TEXT NOT NULL,
-  type TEXT NOT NULL DEFAULT 'info' CHECK (type IN ('info', 'action', 'warning', 'success')),
+  type TEXT NOT NULL DEFAULT 'info' CHECK (type IN ('info', 'action', 'warning', 'success', 'editor_invite')),
   read BOOLEAN NOT NULL DEFAULT FALSE,
   project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  metadata JSONB DEFAULT '{}'
 );
 
 -- Link project_editors.project_id → projects.id
