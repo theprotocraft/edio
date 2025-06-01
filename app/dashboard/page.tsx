@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { Plus, Video, Clock, CheckCircle, AlertCircle } from "lucide-react"
 import { fetchDashboardData } from "@/lib/server-api"
+import { DashboardNotifications } from "@/app/components/dashboard-notifications"
 
 export default async function DashboardPage() {
   try {
@@ -139,34 +140,7 @@ export default async function DashboardPage() {
               )}
             </CardContent>
           </Card>
-
-          <Card className="col-span-1">
-            <CardHeader>
-              <CardTitle>Recent Notifications</CardTitle>
-              <CardDescription>Stay updated on your project activities</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {notifications && notifications.length > 0 ? (
-                <div className="space-y-4">
-                  {notifications.map((notification: any) => (
-                    <div key={notification.id} className="flex items-start space-x-4 rounded-md border p-4">
-                      <div className="flex-1 space-y-1">
-                        <p className="font-medium">{notification.type}</p>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">{notification.message}</p>
-                        <p className="text-xs text-gray-400 dark:text-gray-500">
-                          {new Date(notification.created_at).toLocaleDateString()}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="flex items-center justify-center h-40 text-center">
-                  <p className="text-gray-500 dark:text-gray-400">No notifications yet</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          <DashboardNotifications notifications={notifications} />
         </div>
       </div>
     )

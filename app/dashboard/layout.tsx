@@ -18,6 +18,10 @@ import { redirect } from "next/navigation"
 import type { Database } from "@/types/supabase"
 import DashboardLogout from "@/components/dashboard-logout"
 import { createServerClient } from "@/lib/supabase-server"
+import { DashboardNav } from "@/app/components/dashboard-nav"
+import { MainNav } from "@/app/components/main-nav"
+import { UserNav } from "@/components/user-nav"
+import { Notifications } from "@/app/components/notifications"
 
 interface DashboardLayoutProps {
   children: ReactNode
@@ -56,45 +60,23 @@ export default async function DashboardLayout({ children }: DashboardLayoutProps
   }
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <DashboardNavbar />
-      <div className="container mx-auto flex-1 items-start md:grid md:grid-cols-[220px_minmax(0,1fr)] md:gap-6 lg:grid-cols-[240px_minmax(0,1fr)] lg:gap-10">
-        <aside className="fixed top-16 z-30 -ml-2 hidden h-[calc(100vh-4rem)] w-full shrink-0 md:sticky md:block">
-          <div className="h-full py-6 pr-6 lg:py-8">
-            <nav className="flex flex-col space-y-2">
-              <Link href="/dashboard/overview">
-                <Button variant="ghost" className="w-full justify-start">
-                  <LayoutDashboard className="mr-2 h-5 w-5" />
-                  Overview
-                </Button>
-              </Link>
-              <Link href="/dashboard/projects">
-                <Button variant="ghost" className="w-full justify-start">
-                  <FolderVideo className="mr-2 h-5 w-5" />
-                  Projects
-                </Button>
-              </Link>
-              {userRole === "editor" && (
-                <Link href="/dashboard/youtubers">
-                  <Button variant="ghost" className="w-full justify-start">
-                    <Users className="mr-2 h-5 w-5" />
-                    Youtubers
-                  </Button>
-                </Link>
-              )}
-              {userRole === "youtuber" && (
-                <Link href="/dashboard/editors">
-                  <Button variant="ghost" className="w-full justify-start">
-                    <Users className="mr-2 h-5 w-5" />
-                    Editors
-                  </Button>
-                </Link>
-              )}
-              <DashboardLogout />
-            </nav>
+    <div className="flex min-h-screen flex-col space-y-6">
+      <header className="sticky top-0 z-40 border-b bg-background">
+        <div className="container flex h-16 items-center justify-between py-4">
+          <MainNav />
+          <div className="flex items-center gap-4">
+            <Notifications />
+            <UserNav />
           </div>
+        </div>
+      </header>
+      <div className="container grid flex-1 gap-12 md:grid-cols-[200px_1fr]">
+        <aside className="hidden w-[200px] flex-col md:flex">
+          <DashboardNav />
         </aside>
-        <main className="flex w-full flex-col overflow-hidden py-6 lg:py-8">{children}</main>
+        <main className="flex w-full flex-1 flex-col overflow-hidden">
+          {children}
+        </main>
       </div>
     </div>
   )

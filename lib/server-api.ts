@@ -115,13 +115,20 @@ export async function fetchProjects() {
     const { data: ownedProjects, error: ownedError } = await supabase
       .from("projects")
       .select(`
-        *,
-        owner:users!projects_owner_id_fkey(id, name, email),
-        editors:project_editors(editor_id, editor:users(id, name, email))
+        id,
+        project_title,
+        description,
+        status,
+        thumbnail_url,
+        created_at,
+        updated_at,
+        owner_id,
+        owner:users(id, name, email)
       `)
       .eq("owner_id", user.id)
       .order("updated_at", { ascending: false })
-      
+
+      console.log(ownedProjects);
     if (ownedError) {
       console.error("Error fetching owned projects:", ownedError)
     }
@@ -141,6 +148,7 @@ export async function fetchProjects() {
     if (editedError) {
       console.error("Error fetching edited projects:", editedError)
     }
+    console.log(editedProjects);
 
     // Combine projects
     const projects = [
