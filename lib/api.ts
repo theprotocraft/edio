@@ -27,12 +27,14 @@ export async function createProject({
   title, 
   videoTitle, 
   description,
-  hashtags 
+  hashtags,
+  editorId
 }: { 
   title: string; 
   videoTitle?: string;
   description?: string;
   hashtags?: string;
+  editorId?: string;
 }) {
   const supabase = createClient()
 
@@ -77,6 +79,18 @@ export async function createProject({
 
     if (editorError) {
       console.error("Failed to add editor to project:", editorError)
+    }
+  }
+  
+  // If an editor was selected and user is a creator
+  if (editorId && userData.role === "youtuber" && data && data[0]) {
+    const { error: editorError } = await supabase.from("project_editors").insert({
+      project_id: data[0].id,
+      editor_id: editorId,
+    })
+
+    if (editorError) {
+      console.error("Failed to add selected editor to project:", editorError)
     }
   }
 
@@ -400,5 +414,96 @@ export async function getPresignedViewUrl(fileUrl: string) {
     console.error("Error getting presigned view URL:", error);
     // Return the original URL as fallback (won't work, but prevents UI errors)
     return fileUrl;
+  }
+}
+
+export async function fetchEditors() {
+  const supabase = createClient()
+
+  try {
+    // First get the current user's ID
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
+    
+    if (userError || !user) {
+      console.error("Error fetching current user:", userError)
+      return []
+    }
+
+    // Get editors who have been invited by this creator
+    const { data: invites, error: invitesError } = await supabase
+      .from("editor_invites")
+      .select("editor_id, editor_email, status")
+      .eq("creator_id", user.id)
+      .in("status", ["accepted"])
+
+    if (invitesError) {
+      console.error("Error fetching editor invites:", invitesError)
+      return []
+    }
+
+    // Extract editor IDs that aren't null (already registered)
+    const editorIds = invites
+      .filter(invite => invite.editor_id !== null)
+      .map(invite => invite.editor_id)
+
+    if (editorIds.length === 0) {
+      return []
+    }
+
+    // Fetch the editor details
+    const { data: editors, error: editorsError } = await supabase
+      .from("users")
+      .select("id, name, email, avatar_url")
+      .in("id", editorIds)
+
+    if (editorsError) {
+      console.error("Error fetching editors:", editorsError)
+      return []
+    }
+
+    return editors || []
+  } catch (error) {
+    console.error("Error in fetchEditors:", error)
+    return []
+  }
+}
+
+export async function assignEditorToProject(projectId: string, editorId: string) {
+  const supabase = createClient()
+
+  try {
+    // Check if the editor is already assigned to the project
+    const { data: existingAssignment, error: checkError } = await supabase
+      .from("project_editors")
+      .select("id")
+      .eq("project_id", projectId)
+      .eq("editor_id", editorId)
+      .maybeSingle()
+
+    if (checkError) {
+      throw checkError
+    }
+
+    // If the editor is already assigned, no need to do anything
+    if (existingAssignment) {
+      return { success: true, message: "Editor is already assigned to this project" }
+    }
+
+    // Assign the editor to the project
+    const { error: assignError } = await supabase
+      .from("project_editors")
+      .insert({
+        project_id: projectId,
+        editor_id: editorId,
+      })
+
+    if (assignError) {
+      throw assignError
+    }
+
+    return { success: true, message: "Editor assigned successfully" }
+  } catch (error: any) {
+    console.error("Error assigning editor to project:", error)
+    return { success: false, message: error.message || "Failed to assign editor" }
   }
 }

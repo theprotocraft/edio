@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -8,25 +8,60 @@ import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { useToast } from "@/hooks/use-toast"
 import { useSupabase } from "@/hooks/useUser"
-import { createProject } from "@/lib/api"
+import { createProject, fetchEditors } from "@/lib/api"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Loader2 } from "lucide-react"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
 const projectSchema = z.object({
   title: z.string().min(1, "Project title is required"),
   videoTitle: z.string().min(1, "Video title is required"),
   description: z.string().min(1, "Video description is required"),
+  editorId: z.string().optional(),
 })
 
 type ProjectFormValues = z.infer<typeof projectSchema>
 
+interface Editor {
+  id: string
+  name: string
+  email: string
+  avatar_url?: string
+}
+
 export default function NewProjectPage() {
   const [loading, setLoading] = useState(false)
+  const [editors, setEditors] = useState<Editor[]>([])
+  const [loadingEditors, setLoadingEditors] = useState(false)
   const { supabase, user } = useSupabase()
   const router = useRouter()
   const { toast } = useToast()
+
+  // Fetch available editors
+  useEffect(() => {
+    const getEditors = async () => {
+      setLoadingEditors(true)
+      try {
+        const editorsData = await fetchEditors()
+        setEditors(editorsData)
+      } catch (error) {
+        console.error("Failed to load editors:", error)
+        toast({
+          title: "Failed to load editors",
+          description: "Could not retrieve the list of available editors.",
+          variant: "destructive",
+        })
+      } finally {
+        setLoadingEditors(false)
+      }
+    }
+
+    getEditors()
+  }, [toast])
 
   const form = useForm<ProjectFormValues>({
     resolver: zodResolver(projectSchema),
@@ -34,6 +69,7 @@ export default function NewProjectPage() {
       title: "",
       videoTitle: "",
       description: "",
+      editorId: "",
     },
   })
 
@@ -54,6 +90,7 @@ export default function NewProjectPage() {
         title: data.title,
         videoTitle: data.videoTitle,
         description: data.description,
+        editorId: data.editorId === "none" || !data.editorId ? undefined : data.editorId, // Handle "none" value
       })
 
       toast({
@@ -122,6 +159,55 @@ export default function NewProjectPage() {
                       <Textarea placeholder="Enter your YouTube video description" rows={5} {...field} />
                     </FormControl>
                     <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="editorId"
+                render={({ field }) => (
+                  <FormItem className="space-y-2">
+                    <FormLabel>Assign Editor</FormLabel>
+                    <Select 
+                      onValueChange={field.onChange} 
+                      defaultValue={field.value}
+                      disabled={loadingEditors}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select an editor (optional)" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="none">None</SelectItem>
+                        {loadingEditors ? (
+                          <div className="flex items-center justify-center py-2">
+                            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                            <span className="ml-2 text-sm text-muted-foreground">Loading editors...</span>
+                          </div>
+                        ) : editors.length > 0 ? (
+                          editors.map((editor) => (
+                            <SelectItem key={editor.id} value={editor.id}>
+                              <div className="flex items-center">
+                                <Avatar className="h-6 w-6 mr-2">
+                                  <AvatarImage src={editor.avatar_url} alt={editor.name} />
+                                  <AvatarFallback>{editor.name?.charAt(0).toUpperCase() || 'E'}</AvatarFallback>
+                                </Avatar>
+                                <span>{editor.name || editor.email}</span>
+                              </div>
+                            </SelectItem>
+                          ))
+                        ) : (
+                          <div className="flex items-center justify-center py-2">
+                            <span className="text-sm text-muted-foreground">No editors invited yet</span>
+                          </div>
+                        )}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                    <p className="text-xs text-muted-foreground">
+                      You can assign an editor now or later from the project page. <span className="text-muted-foreground/80">Editors must be invited in the Editors tab first.</span>
+                    </p>
                   </FormItem>
                 )}
               />

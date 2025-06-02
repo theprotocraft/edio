@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import {
@@ -10,9 +10,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
-import { Clock, MoreHorizontal, Trash, Edit, CheckCircle } from "lucide-react"
+import { Clock, MoreHorizontal, Trash, CheckCircle, UserPlus, Loader2 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { useSupabase } from "@/hooks/useUser"
 import {
@@ -25,21 +25,73 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { deleteProject, completeProject } from "@/lib/api"
+import { deleteProject, completeProject, fetchEditors, assignEditorToProject } from "@/lib/api"
 import { getInitials } from "@/lib/utils"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 interface ProjectHeaderProps {
   project: any
   userRole: "creator" | "editor"
 }
 
+interface Editor {
+  id: string
+  name: string
+  email: string
+  avatar_url?: string
+}
+
 export function ProjectHeader({ project, userRole }: ProjectHeaderProps) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [completeDialogOpen, setCompleteDialogOpen] = useState(false)
+  const [assignDialogOpen, setAssignDialogOpen] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [loadingEditors, setLoadingEditors] = useState(false)
+  const [editors, setEditors] = useState<Editor[]>([])
+  const [selectedEditorId, setSelectedEditorId] = useState<string>("")
+  const [assigningEditor, setAssigningEditor] = useState(false)
   const { supabase } = useSupabase()
   const router = useRouter()
   const { toast } = useToast()
+
+  // Fetch available editors when dialog opens
+  useEffect(() => {
+    if (assignDialogOpen) {
+      const getEditors = async () => {
+        setLoadingEditors(true)
+        try {
+          const editorsData = await fetchEditors()
+          setEditors(editorsData)
+        } catch (error) {
+          console.error("Failed to load editors:", error)
+          toast({
+            title: "Failed to load editors",
+            description: "Could not retrieve the list of available editors.",
+            variant: "destructive",
+          })
+        } finally {
+          setLoadingEditors(false)
+        }
+      }
+
+      getEditors()
+    }
+  }, [assignDialogOpen, toast])
 
   const handleDeleteProject = async () => {
     setLoading(true)
@@ -89,6 +141,42 @@ export function ProjectHeader({ project, userRole }: ProjectHeaderProps) {
     }
   }
 
+  const handleAssignEditor = async () => {
+    if (!selectedEditorId) {
+      toast({
+        title: "No editor selected",
+        description: "Please select an editor to assign to this project.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setAssigningEditor(true)
+
+    try {
+      const result = await assignEditorToProject(project.id, selectedEditorId)
+      
+      if (result.success) {
+        toast({
+          title: "Editor assigned",
+          description: "The editor has been assigned to this project.",
+        })
+        setAssignDialogOpen(false)
+        router.refresh()
+      } else {
+        throw new Error(result.message)
+      }
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to assign editor.",
+        variant: "destructive",
+      })
+    } finally {
+      setAssigningEditor(false)
+    }
+  }
+
   const getStatusBadge = () => {
     switch (project.status) {
       case "approved":
@@ -118,6 +206,9 @@ export function ProjectHeader({ project, userRole }: ProjectHeaderProps) {
     }
   }
 
+  // Check if there are editors assigned to the project
+  const hasAssignedEditors = project.editors && project.editors.length > 0
+
   return (
     <div className="mb-6">
       <div className="flex flex-col space-y-4 md:flex-row md:items-start md:justify-between md:space-y-0">
@@ -145,15 +236,92 @@ export function ProjectHeader({ project, userRole }: ProjectHeaderProps) {
 
         <div className="flex items-center space-x-2">
           {userRole === "creator" && project.status !== "approved" && (
-            <Button
-              variant="outline"
-              onClick={() => setCompleteDialogOpen(true)}
-              disabled={loading}
-              className="rounded-2xl"
-            >
-              <CheckCircle className="mr-2 h-4 w-4" />
-              Mark as Complete
-            </Button>
+            <>
+              {!hasAssignedEditors && (
+                <Dialog open={assignDialogOpen} onOpenChange={setAssignDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" className="rounded-2xl">
+                      <UserPlus className="mr-2 h-4 w-4" />
+                      Assign Editor
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Assign Editor to Project</DialogTitle>
+                      <DialogDescription>
+                        Select an editor from your invited editors to assign to this project.
+                      </DialogDescription>
+                    </DialogHeader>
+                    {loadingEditors ? (
+                      <div className="flex items-center justify-center py-6">
+                        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                        <span className="ml-2">Loading editors...</span>
+                      </div>
+                    ) : (
+                      <div className="py-4">
+                        <Select
+                          value={selectedEditorId}
+                          onValueChange={setSelectedEditorId}
+                          disabled={loadingEditors}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select an editor" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {editors.length > 0 ? (
+                              editors.map((editor) => (
+                                <SelectItem key={editor.id} value={editor.id}>
+                                  <div className="flex items-center">
+                                    <Avatar className="h-6 w-6 mr-2">
+                                      <AvatarImage src={editor.avatar_url} alt={editor.name} />
+                                      <AvatarFallback>{editor.name?.charAt(0).toUpperCase() || 'E'}</AvatarFallback>
+                                    </Avatar>
+                                    <span>{editor.name || editor.email}</span>
+                                  </div>
+                                </SelectItem>
+                              ))
+                            ) : (
+                              <div className="flex items-center justify-center py-2">
+                                <span className="text-sm text-muted-foreground">No editors available</span>
+                              </div>
+                            )}
+                          </SelectContent>
+                        </Select>
+                        {editors.length === 0 && (
+                          <p className="text-xs text-muted-foreground mt-2">
+                            You must invite editors in the Editors tab before they can be assigned to projects.
+                          </p>
+                        )}
+                      </div>
+                    )}
+                    <DialogFooter>
+                      <Button
+                        onClick={handleAssignEditor}
+                        disabled={!selectedEditorId || assigningEditor}
+                        className="rounded-2xl shadow-md transition-transform active:scale-[0.98]"
+                      >
+                        {assigningEditor ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Assigning...
+                          </>
+                        ) : (
+                          "Assign Editor"
+                        )}
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              )}
+              <Button
+                variant="outline"
+                onClick={() => setCompleteDialogOpen(true)}
+                disabled={loading}
+                className="rounded-2xl"
+              >
+                <CheckCircle className="mr-2 h-4 w-4" />
+                Mark as Complete
+              </Button>
+            </>
           )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -163,15 +331,6 @@ export function ProjectHeader({ project, userRole }: ProjectHeaderProps) {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem asChild>
-                <Button variant="ghost" className="w-full justify-start" asChild>
-                  <a href={`/dashboard/projects/${project.id}/edit`}>
-                    <Edit className="mr-2 h-4 w-4" />
-                    Edit Project
-                  </a>
-                </Button>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
               <DropdownMenuItem>
                 <Button
                   variant="ghost"
@@ -200,7 +359,7 @@ export function ProjectHeader({ project, userRole }: ProjectHeaderProps) {
 
         <div className="flex items-center space-x-2">
           <span className="text-sm font-medium">Editors:</span>
-          {project.editors && project.editors.length > 0 ? (
+          {hasAssignedEditors ? (
             <div className="flex items-center space-x-2">
               {project.editors.map((pe: any) => (
                 <div key={pe.id} className="flex items-center space-x-1">
@@ -210,6 +369,10 @@ export function ProjectHeader({ project, userRole }: ProjectHeaderProps) {
                   <span>{pe.editor?.name || "Unknown"}</span>
                 </div>
               ))}
+            </div>
+          ) : userRole === "creator" ? (
+            <div className="flex items-center">
+              <span className="text-muted-foreground">Unassigned</span>
             </div>
           ) : (
             <span className="text-muted-foreground">Unassigned</span>
@@ -249,11 +412,7 @@ export function ProjectHeader({ project, userRole }: ProjectHeaderProps) {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={loading}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleCompleteProject}
-              disabled={loading}
-              className="rounded-2xl shadow-md transition-transform active:scale-[0.98]"
-            >
+            <AlertDialogAction onClick={handleCompleteProject} disabled={loading}>
               {loading ? "Updating..." : "Complete Project"}
             </AlertDialogAction>
           </AlertDialogFooter>

@@ -1,30 +1,46 @@
-# Edio
+# 🎬 Edio – Setup Guide
 
-*Automatically synced with your [v0.dev](https://v0.dev) deployments*
+Welcome to **Edio**, the collaborative platform designed for YouTubers and editors. This guide helps you configure the project locally with Supabase and initialize the database schema.
 
-[![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-black?style=for-the-badge&logo=vercel)](https://vercel.com/theprotocrafts-projects/v0-edio)
-[![Built with v0](https://img.shields.io/badge/Built%20with-v0.dev-black?style=for-the-badge)](https://v0.dev/chat/projects/w5KsSD2gF2E)
+---
 
-## Overview
+## ⚙️ Environment Setup
 
-This repository will stay in sync with your deployed chats on [v0.dev](https://v0.dev).
-Any changes you make to your deployed app will be automatically pushed to this repository from [v0.dev](https://v0.dev).
+### 1. Create a Supabase Project
 
-## Deployment
+If you haven’t already, create a free Supabase project at [supabase.com](https://supabase.com).
 
-Your project is live at:
+---
 
-**[https://vercel.com/theprotocrafts-projects/v0-edio](https://vercel.com/theprotocrafts-projects/v0-edio)**
+### 2. Get Your Supabase API Credentials
 
-## Build your app
+- Open your Supabase project dashboard
+- Go to **Settings → API**
+- Copy the following:
+  - **Project URL**
+  - **Anon Public Key**
 
-Continue building your app on:
+---
 
-**[https://v0.dev/chat/projects/w5KsSD2gF2E](https://v0.dev/chat/projects/w5KsSD2gF2E)**
+### 3. Create `.env.local`
 
-## How It Works
+In the root directory of your project, create a `.env.local` file:
 
-1. Create and modify your project using [v0.dev](https://v0.dev)
-2. Deploy your chats from the v0 interface
-3. Changes are automatically pushed to this repository
-4. Vercel deploys the latest version from this repository
+```env
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+
+🗃️ Database Setup (Supabase SQL)
+1. Initialize the Schema
+Use the provided database-schema.sql file to set up all required tables and permissions.
+
+Steps:
+Go to your Supabase project dashboard
+
+Click SQL Editor in the sidebar
+
+Create a New Query
+
+Paste the contents of database-schema.sql
+
+Click Run

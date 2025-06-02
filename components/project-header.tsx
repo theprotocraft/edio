@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
-import { Clock, MoreHorizontal, Trash, Edit, CheckCircle } from "lucide-react"
+import { Clock, MoreHorizontal, Trash, CheckCircle } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { useSupabase } from "@/lib/supabase-provider"
 import {
@@ -158,15 +158,6 @@ export default function ProjectHeader({ project, editors, userRole }: ProjectHea
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem asChild>
-                <Button variant="ghost" className="w-full justify-start" asChild>
-                  <a href={`/projects/${project.id}/edit`}>
-                    <Edit className="mr-2 h-4 w-4" />
-                    Edit Project
-                  </a>
-                </Button>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
               <DropdownMenuItem>
                 <Button
                   variant="ghost"
