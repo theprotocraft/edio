@@ -62,6 +62,7 @@ export async function fetchDashboardData() {
         )
       `)
       .eq("editor_id", user.id)
+      .eq("status", "active")
       
     if (editedError) {
       console.error("Error fetching edited projects:", editedError)
