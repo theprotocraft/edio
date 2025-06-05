@@ -23,6 +23,7 @@ import { z } from "zod"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { User } from "@supabase/supabase-js"
 import { Badge } from "@/components/ui/badge"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 const inviteSchema = z.object({
   editor_email: z.string().email("Please enter a valid email address"),
@@ -41,6 +42,11 @@ interface Editor {
     email: string
     name: string
   }
+}
+
+interface Project {
+  id: string
+  project_title: string
 }
 
 interface TransformedEditor {
@@ -65,6 +71,7 @@ export function EditorsClient({ user }: EditorsClientProps) {
   const [editors, setEditors] = useState<TransformedEditor[]>([])
   const [loading, setLoading] = useState(true)
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false)
+  const [projects, setProjects] = useState<Project[]>([])
   const supabase = createClientComponentClient()
   const router = useRouter()
   const { toast } = useToast()
@@ -80,6 +87,21 @@ export function EditorsClient({ user }: EditorsClientProps) {
   useEffect(() => {
     fetchEditors()
   }, [user])
+
+  useEffect(() => {
+    fetchProjects()
+  }, [])
+
+  const fetchProjects = async () => {
+    const { data, error } = await supabase
+      .from("projects")
+      .select("id, project_title")
+      .eq("owner_id", user.id)
+
+    if (error) throw error
+
+    setProjects(data)
+  }
 
   const fetchEditors = async () => {
     try {
@@ -316,10 +338,24 @@ export function EditorsClient({ user }: EditorsClientProps) {
                   name="project_id"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Project ID</FormLabel>
-                      <FormControl>
-                        <Input placeholder="project-id" {...field} />
-                      </FormControl>
+                      <FormLabel>Project</FormLabel>
+                      <Select
+                        onValueChange={field.onChange}
+                        defaultValue={field.value}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a project" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {projects?.map((project) => (
+                            <SelectItem key={project.id} value={project.id}>
+                              {project.project_title}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                       <FormMessage />
                     </FormItem>
                   )}
