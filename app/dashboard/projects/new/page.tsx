@@ -190,7 +190,7 @@ export default function NewProjectPage() {
                             <SelectItem key={editor.id} value={editor.id}>
                               <div className="flex items-center">
                                 <Avatar className="h-6 w-6 mr-2">
-                                  <AvatarImage src={editor.avatar_url} alt={editor.name} />
+                                  <AvatarImage src={editor.avatar_url || ""} alt={editor.name} />
                                   <AvatarFallback>{editor.name?.charAt(0).toUpperCase() || 'E'}</AvatarFallback>
                                 </Avatar>
                                 <span>{editor.name || editor.email}</span>

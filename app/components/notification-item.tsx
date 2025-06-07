@@ -20,10 +20,9 @@ interface NotificationItemProps {
   notification: {
     id: string
     type: string
-    content: string
+    message: string
     metadata: any
     read: boolean
-    invitation_status?: string
     created_at: string
   }
   onActionComplete: () => void
@@ -40,14 +39,20 @@ export function NotificationItem({ notification, onActionComplete }: Notificatio
   const handleEditorInvite = async (accept: boolean) => {
     setLoading(true)
     try {
-      // Update project_editors table
-      const { error: editorError } = await supabase
-        .from("project_editors")
+      // Get the current user's email for the notification
+      const { data: { user }, error: userError } = await supabase.auth.getUser()
+      if (userError || !user) throw new Error("Not authenticated")
+
+      // Update youtuber_editors table
+      const { data: editorData, error: editorError } = await supabase
+        .from("youtuber_editors")
         .update({
           status: accept ? "active" : "rejected",
           editor_id: accept ? notification.metadata.editor_id : null,
         })
         .eq("id", notification.metadata.invitation_id)
+        .select("youtuber_id")
+        .single()
 
       if (editorError) {
         console.error("Error updating invitation:", editorError)
@@ -58,7 +63,11 @@ export function NotificationItem({ notification, onActionComplete }: Notificatio
       const { error: notificationError } = await supabase
         .from("notifications")
         .update({
-          invitation_status: accept ? "accepted" : "rejected",
+          metadata: {
+            ...notification.metadata,
+            status: accept ? "accepted" : "rejected"
+          },
+          message: `You have ${accept ? "accepted" : "rejected"} the editor invitation`,
           read: true
         })
         .eq("id", notification.id)
@@ -66,6 +75,26 @@ export function NotificationItem({ notification, onActionComplete }: Notificatio
       if (notificationError) {
         console.error("Error updating notification:", notificationError)
         throw notificationError
+      }
+
+      // Create notification for the YouTuber
+      const { error: youtuberNotificationError } = await supabase
+        .from("notifications")
+        .insert({
+          user_id: editorData.youtuber_id,
+          type: "editor_response",
+          message: `${user.email} has ${accept ? "accepted" : "rejected"} your editor invitation`,
+          metadata: {
+            editor_id: user.id,
+            status: accept ? "accepted" : "rejected",
+            invitation_id: notification.metadata.invitation_id
+          },
+          read: false
+        })
+
+      if (youtuberNotificationError) {
+        console.error("Error creating YouTuber notification:", youtuberNotificationError)
+        throw youtuberNotificationError
       }
 
       toast({
@@ -89,11 +118,17 @@ export function NotificationItem({ notification, onActionComplete }: Notificatio
   }
 
   const getStatusBadge = () => {
-    if (notification.invitation_status === "accepted") {
-      return <Badge variant="default" className="ml-2">Accepted</Badge>
-    }
-    if (notification.invitation_status === "rejected") {
-      return <Badge variant="destructive" className="ml-2">Rejected</Badge>
+    if (notification.type === "editor_invite") {
+      switch (notification.metadata?.status) {
+        case "accepted":
+          return <Badge variant="default" className="ml-2">Accepted</Badge>
+        case "rejected":
+          return <Badge variant="destructive" className="ml-2">Rejected</Badge>
+        case "pending":
+          return <Badge variant="secondary" className="ml-2">Pending</Badge>
+        default:
+          return <Badge variant="secondary" className="ml-2">New</Badge>
+      }
     }
     if (!notification.read) {
       return <Badge variant="secondary" className="ml-2">New</Badge>
@@ -102,8 +137,8 @@ export function NotificationItem({ notification, onActionComplete }: Notificatio
   }
 
   const getActionButtons = () => {
-    console.log(notification)
-    if (notification.type === "editor_invite" && notification.invitation_status==="pending") {
+    if (notification.type === "editor_invite" && 
+        (!notification.metadata?.status || notification.metadata?.status === "pending")) {
       return (
         <div className="flex space-x-2 mt-2">
           <Button
@@ -142,7 +177,7 @@ export function NotificationItem({ notification, onActionComplete }: Notificatio
       <div className="flex flex-col items-start p-4">
         <div className="flex items-start justify-between w-full">
           <div className="flex-1">
-            <p className="text-sm font-medium">{notification.content}</p>
+            <p className="text-sm font-medium">{notification.message}</p>
             <p className="text-xs text-muted-foreground mt-1">
               {new Date(notification.created_at).toLocaleString()}
             </p>

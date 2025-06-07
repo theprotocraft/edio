@@ -1,95 +1,262 @@
--- Drop existing tables if they exist
-DROP TABLE IF EXISTS project_editors;
-DROP TABLE IF EXISTS notifications;
+-- Enable necessary extensions
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- Create project_editors table
-CREATE TABLE project_editors (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
-    editor_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
-    status TEXT NOT NULL CHECK (status IN ('pending', 'active', 'rejected')),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
-    UNIQUE(project_id, editor_id)
+-- Drop existing tables if they exist (for clean setup)
+DROP TABLE IF EXISTS notifications CASCADE;
+DROP TABLE IF EXISTS messages CASCADE;
+DROP TABLE IF EXISTS video_versions CASCADE;
+DROP TABLE IF EXISTS uploads CASCADE;
+DROP TABLE IF EXISTS youtuber_editors CASCADE;
+DROP TABLE IF EXISTS projects CASCADE;
+DROP TABLE IF EXISTS users CASCADE;
+
+-- Create users table
+CREATE TABLE users (
+  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  name TEXT,
+  email TEXT UNIQUE,
+  role TEXT NOT NULL CHECK (role IN ('youtuber', 'editor')),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Create index for faster lookups
-CREATE INDEX idx_project_editors_editor_id ON project_editors(editor_id);
-CREATE INDEX idx_project_editors_project_id ON project_editors(project_id);
+-- Create projects table
+CREATE TABLE projects (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  owner_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  project_title TEXT NOT NULL,
+  video_title TEXT,
+  description TEXT,
+  thumbnail_url TEXT,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'in_review', 'needs_changes', 'approved')),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Create youtuber_editors mapping table
+CREATE TABLE youtuber_editors (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  youtuber_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  editor_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'active', 'rejected')),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(youtuber_id, editor_id)
+);
+
+-- Create video_versions table
+CREATE TABLE video_versions (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  uploader_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  version_number INT NOT NULL,
+  file_url TEXT NOT NULL,
+  preview_url TEXT,
+  notes TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(project_id, version_number)
+);
+
+-- Create uploads table (for thumbnails, raw videos, etc)
+CREATE TABLE uploads (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  file_url TEXT NOT NULL,
+  file_type TEXT NOT NULL CHECK (file_type IN ('video', 'thumbnail', 'audio', 'document', 'other')),
+  file_name TEXT NOT NULL,
+  file_size BIGINT NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Create editor invites table
+CREATE TABLE editor_invites (
+  id            UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  creator_id    UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  editor_id     UUID REFERENCES users(id) ON DELETE SET NULL,
+  editor_email  TEXT NOT NULL,
+  status        TEXT NOT NULL DEFAULT 'pending'
+                CHECK (status IN ('pending','accepted','declined','revoked')),
+  created_at    TIMESTAMPTZ DEFAULT NOW(),
+  accepted_at   TIMESTAMPTZ
+);
+CREATE INDEX ON editor_invites (creator_id);
+CREATE INDEX ON editor_invites (editor_email);
+
+-- Create messages table
+CREATE TABLE messages (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  sender_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  content TEXT NOT NULL,
+  type TEXT NOT NULL DEFAULT 'text' CHECK (type IN ('text', 'system', 'feedback')),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
 
 -- Create notifications table
 CREATE TABLE notifications (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
-    type TEXT NOT NULL CHECK (type IN ('editor_invite', 'project_invite', 'system')),
-    content TEXT NOT NULL,
-    metadata JSONB DEFAULT '{}'::jsonb,
-    read BOOLEAN DEFAULT false,
-    invitation_status TEXT CHECK (invitation_status IN ('pending', 'accepted', 'rejected')),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  message TEXT NOT NULL,
+  type TEXT NOT NULL DEFAULT 'info' CHECK (type IN ('info', 'action', 'warning', 'success', 'editor_invite')),
+  read BOOLEAN NOT NULL DEFAULT FALSE,
+  project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  metadata JSONB DEFAULT '{}'
 );
 
--- Create function to update updated_at timestamp
-CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.updated_at = TIMEZONE('utc'::text, NOW());
-    RETURN NEW;
-END;
-$$ language 'plpgsql';
-
--- Create trigger for project_editors
-CREATE TRIGGER update_project_editors_updated_at
-    BEFORE UPDATE ON project_editors
-    FOR EACH ROW
-    EXECUTE FUNCTION update_updated_at_column();
-
--- Enable RLS
-ALTER TABLE project_editors ENABLE ROW LEVEL SECURITY;
+-- Enable Row Level Security
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE projects ENABLE ROW LEVEL SECURITY;
+ALTER TABLE youtuber_editors ENABLE ROW LEVEL SECURITY;
+ALTER TABLE video_versions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE uploads ENABLE ROW LEVEL SECURITY;
+ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
 
--- Drop existing policies if they exist
-DROP POLICY IF EXISTS "Users can view their own editors" ON project_editors;
-DROP POLICY IF EXISTS "Users can add editors" ON project_editors;
-DROP POLICY IF EXISTS "Users can update their editors" ON project_editors;
-DROP POLICY IF EXISTS "Users can view their own notifications" ON notifications;
-DROP POLICY IF EXISTS "Users can update their own notifications" ON notifications;
-DROP POLICY IF EXISTS "Users can insert notifications for others" ON notifications;
+-- Row Level Security Policies
 
--- Project editors policies
-CREATE POLICY "Users can view their own editors"
-    ON project_editors FOR SELECT
-    USING (
-        auth.uid() IN (
-            SELECT owner_id FROM projects WHERE id = project_editors.project_id
-        ) OR auth.uid() = editor_id
-    );
+-- Users can read all users but only edit their own profile
+CREATE POLICY "Anyone can read users" ON users
+  FOR SELECT USING (true);
 
-CREATE POLICY "Users can add editors"
-    ON project_editors FOR INSERT
-    WITH CHECK (
-        auth.uid() IN (
-            SELECT owner_id FROM projects WHERE id = project_editors.project_id
+CREATE POLICY "Users can update their own profile" ON users
+  FOR UPDATE USING (auth.uid() = id);
+
+-- Projects - owners can CRUD their own projects
+CREATE POLICY "Owners can CRUD their projects" ON projects
+  FOR ALL USING (auth.uid() = owner_id);
+
+-- Projects - editors can read projects they are assigned to
+CREATE POLICY "Editors can read their assigned projects" ON projects
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM youtuber_editors
+      WHERE youtuber_id = projects.owner_id AND editor_id = auth.uid()
+      AND status = 'active'
+    )
+  );
+
+-- Youtuber-Editors relationship policies
+CREATE POLICY "Youtubers can manage their editors" ON youtuber_editors
+  FOR ALL USING (youtuber_id = auth.uid());
+
+CREATE POLICY "Editors can view their relationships" ON youtuber_editors
+  FOR SELECT USING (editor_id = auth.uid());
+
+-- Video versions - project members can view
+CREATE POLICY "Project members can view video versions" ON video_versions
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM projects
+      WHERE projects.id = video_versions.project_id AND 
+      (
+        projects.owner_id = auth.uid() OR 
+        EXISTS (
+          SELECT 1 FROM youtuber_editors
+          WHERE youtuber_id = projects.owner_id
+          AND editor_id = auth.uid()
+          AND status = 'active'
         )
-    );
+      )
+    )
+  );
 
-CREATE POLICY "Users can update their editors"
-    ON project_editors FOR UPDATE
-    USING (
-        auth.uid() IN (
-            SELECT owner_id FROM projects WHERE id = project_editors.project_id
-        ) OR auth.uid() = editor_id
-    );
+-- Video versions - uploaders can CRUD their uploads
+CREATE POLICY "Uploaders can CRUD their video versions" ON video_versions
+  FOR ALL USING (auth.uid() = uploader_id);
 
--- Notifications policies
-CREATE POLICY "Users can view their own notifications"
-    ON notifications FOR SELECT
-    USING (auth.uid() = user_id);
+-- Uploads - project members can view
+CREATE POLICY "Project members can view uploads" ON uploads
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM projects
+      WHERE projects.id = uploads.project_id AND 
+      (
+        projects.owner_id = auth.uid() OR 
+        EXISTS (
+          SELECT 1 FROM youtuber_editors
+          WHERE youtuber_id = projects.owner_id
+          AND editor_id = auth.uid()
+          AND status = 'active'
+        )
+      )
+    )
+  );
 
-CREATE POLICY "Users can update their own notifications"
-    ON notifications FOR UPDATE
-    USING (auth.uid() = user_id);
+-- Uploads - users can CRUD their own uploads
+CREATE POLICY "Users can CRUD their own uploads" ON uploads
+  FOR ALL USING (auth.uid() = user_id);
 
-CREATE POLICY "Users can insert notifications"
-    ON notifications FOR INSERT
-    WITH CHECK (true);  -- Allow any authenticated user to insert notifications 
+-- Messages - project members can view
+CREATE POLICY "Project members can read messages" ON messages
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM projects
+      WHERE projects.id = messages.project_id AND 
+      (
+        projects.owner_id = auth.uid() OR 
+        EXISTS (
+          SELECT 1 FROM youtuber_editors
+          WHERE youtuber_id = projects.owner_id
+          AND editor_id = auth.uid()
+          AND status = 'active'
+        )
+      )
+    )
+  );
+
+-- Messages - users can create messages for projects they belong to
+CREATE POLICY "Project members can create messages" ON messages
+  FOR INSERT WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM projects
+      WHERE projects.id = messages.project_id AND 
+      (
+        projects.owner_id = auth.uid() OR 
+        EXISTS (
+          SELECT 1 FROM youtuber_editors
+          WHERE youtuber_id = projects.owner_id
+          AND editor_id = auth.uid()
+          AND status = 'active'
+        )
+      )
+    )
+  );
+
+-- Notifications - users can only see their own notifications
+CREATE POLICY "Users can read their own notifications" ON notifications
+  FOR SELECT USING (auth.uid() = user_id);
+
+-- Users can mark their notifications as read
+CREATE POLICY "Users can update their own notifications" ON notifications
+  FOR UPDATE USING (auth.uid() = user_id);
+
+-- Create function to automatically update timestamps
+CREATE OR REPLACE FUNCTION update_modified_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ LANGUAGE 'plpgsql';
+
+-- Add trigger for projects table
+CREATE TRIGGER update_projects_modtime
+BEFORE UPDATE ON projects
+FOR EACH ROW
+EXECUTE PROCEDURE update_modified_column();
+
+-- Add trigger for youtuber_editors table
+CREATE TRIGGER update_youtuber_editors_modtime
+BEFORE UPDATE ON youtuber_editors
+FOR EACH ROW
+EXECUTE PROCEDURE update_modified_column();
+
+CREATE POLICY "Creator manages own invites"
+  ON editor_invites FOR ALL USING (creator_id = auth.uid());
+
+CREATE POLICY "Editor reads own invites"
+  ON editor_invites FOR SELECT USING (
+    editor_id = auth.uid()
+    OR (editor_id IS NULL AND lower(editor_email) = lower(auth.jwt() ->> 'email'))
+  ); 

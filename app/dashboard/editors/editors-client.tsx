@@ -27,7 +27,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 const inviteSchema = z.object({
   editor_email: z.string().email("Please enter a valid email address"),
-  project_id: z.string().uuid("Invalid project ID"),
 })
 
 type InviteFormValues = z.infer<typeof inviteSchema>
@@ -36,7 +35,6 @@ interface Editor {
   id: string
   status: "pending" | "active" | "rejected"
   created_at: string
-  project_id: string
   editor?: {
     id: string
     email: string
@@ -60,7 +58,6 @@ interface TransformedEditor {
       full_name?: string | null
     }
   }
-  project_name: string | null
 }
 
 interface EditorsClientProps {
@@ -80,7 +77,6 @@ export function EditorsClient({ user }: EditorsClientProps) {
     resolver: zodResolver(inviteSchema),
     defaultValues: {
       editor_email: "",
-      project_id: "",
     },
   })
 
@@ -88,9 +84,9 @@ export function EditorsClient({ user }: EditorsClientProps) {
     fetchEditors()
   }, [user])
 
-  useEffect(() => {
-    fetchProjects()
-  }, [])
+  // useEffect(() => {
+  //   fetchProjects()
+  // }, [])
 
   const fetchProjects = async () => {
     const { data, error } = await supabase
@@ -105,47 +101,23 @@ export function EditorsClient({ user }: EditorsClientProps) {
 
   const fetchEditors = async () => {
     try {
-      // First get the project IDs owned by the user
-      const { data: projects, error: projectsError } = await supabase
-        .from("projects")
-        .select("id")
-        .eq("owner_id", user.id)
-
-      if (projectsError) throw projectsError
-
-      // Then get the editors for those projects
       const { data, error } = await supabase
-        .from("project_editors")
+        .from("youtuber_editors")
         .select(`
           id,
           status,
           created_at,
           editor_id,
-          project_id,
+          youtuber_id,
           editor:editor_id!inner (
             id,
             email,
             name
           )
         `)
-        .in("project_id", projects?.map(p => p.id) || [])
+        .eq("youtuber_id", user.id)
         .eq("status", "active")
 
-      // Get project details for each project ID
-      const { data: projectDetails, error: projectDetailsError } = await supabase
-        .from("projects")
-        .select("id, project_title")
-        .in("id", projects?.map(p => p.id) || [])
-
-      if (projectDetailsError) {
-        console.error("Error fetching project details:", projectDetailsError)
-        throw projectDetailsError
-      }
-
-      // Create a map of project IDs to titles for easy lookup
-      const projectMap = new Map(
-        projectDetails?.map(project => [project.id, project.project_title]) || []
-      )
       if (error) {
         console.error("Error fetching editors:", error)
         throw error
@@ -161,9 +133,8 @@ export function EditorsClient({ user }: EditorsClientProps) {
           email: editor.editor.email,
           user_metadata: {
             full_name: editor.editor.name,
-          } // Add empty metadata since we're not fetching it
-        } : undefined,
-        project_name: projectMap.get(editor.project_id) || null
+          }
+        } : undefined
       }))
 
       setEditors(transformedData)
@@ -197,29 +168,43 @@ export function EditorsClient({ user }: EditorsClientProps) {
       if (userError) throw userError
       if (!existingUser) throw new Error("User not found")
 
-      const projectId = data.project_id
-
-      const { data: existingInvite } = await supabase
-        .from("project_editors")
-        .select("*")
-        .eq("project_id", projectId)
+      // Check if any relationship already exists between youtuber and editor
+      const { data: existingRelationship, error: relationshipError } = await supabase
+        .from("youtuber_editors")
+        .select("status")
+        .eq("youtuber_id", user.id)
         .eq("editor_id", existingUser.id)
-        .single()
+        .maybeSingle()
 
-      if (existingInvite) {
+      if (relationshipError) throw relationshipError
+
+      if (existingRelationship) {
+        let message = ""
+        switch (existingRelationship.status) {
+          case "pending":
+            message = "You have already sent an invitation to this editor. They haven't responded yet."
+            break
+          case "active":
+            message = "This editor is already working with you."
+            break
+          case "rejected":
+            message = "This editor has previously rejected your invitation."
+            break
+        }
+        
         toast({
-          title: "Already Invited",
-          description: "This editor has already been invited to your project.",
+          title: "Existing Relationship",
+          description: message,
           variant: "destructive",
         })
         return
       }
 
       const { data: editorData, error: editorError } = await supabase
-        .from("project_editors")
+        .from("youtuber_editors")
         .insert({
-          project_id: projectId,
           editor_id: existingUser.id,
+          youtuber_id: user.id,
           status: "pending",
         })
         .select()
@@ -233,28 +218,18 @@ export function EditorsClient({ user }: EditorsClientProps) {
       const { error: notificationError } = await supabase.from("notifications").insert({
         user_id: existingUser.id,
         type: "editor_invite",
-        content: `${user.email} invited you to be an editor`,
+        message: `${user.email} invited you to be an editor`,
         metadata: { 
-          project_id: projectId,
           invitation_id: editorData.id,
-          editor_id: existingUser.id
+          editor_id: existingUser.id,
+          status: "pending"
         },
-        invitation_status: "pending",
       })
 
       if (notificationError) {
         console.error("Error creating notification:", notificationError)
         throw notificationError
       }
-
-      // const { error: functionError } = await supabase.functions.invoke("resend-email-ps", {
-      //   body: { to: data.editor_email, subject: "You have been invited to collaborate on a project", body: "You have been invited to collaborate on a project" },
-      // })
-
-      // if (functionError) {
-      //   console.error("Error sending email:", functionError)
-      //   throw functionError
-      // }
 
       toast({
         title: "Invitation sent",
@@ -315,7 +290,7 @@ export function EditorsClient({ user }: EditorsClientProps) {
             <DialogHeader>
               <DialogTitle>Invite Editor</DialogTitle>
               <DialogDescription>
-                Invite an editor to collaborate on your projects. They will receive an email notification.
+                Invite an editor to collaborate with you. They will receive an email notification.
               </DialogDescription>
             </DialogHeader>
             <Form {...form}>
@@ -329,33 +304,6 @@ export function EditorsClient({ user }: EditorsClientProps) {
                       <FormControl>
                         <Input placeholder="editor@example.com" {...field} />
                       </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="project_id"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Project</FormLabel>
-                      <Select
-                        onValueChange={field.onChange}
-                        defaultValue={field.value}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select a project" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {projects?.map((project) => (
-                            <SelectItem key={project.id} value={project.id}>
-                              {project.project_title}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -381,11 +329,6 @@ export function EditorsClient({ user }: EditorsClientProps) {
               </CardTitle>
               <CardDescription>
                 {editor.editor?.email}
-                {editor.project_name && (
-                  <span className="ml-2 text-sm text-muted-foreground">
-                    • Project: <span className="font-bold ml-1">{editor.project_name}</span>
-                  </span>
-                )}
               </CardDescription>
             </CardHeader>
             <CardContent>

@@ -15,7 +15,9 @@ export async function GET(request: NextRequest) {
 
     const supabase = await createRouteClient()
 
+    // Exchange the code for a session
     const { data, error } = await supabase.auth.exchangeCodeForSession(code)
+    console.log("Auth exchange result:", { data, error })
 
     if (error || !data?.user) {
       console.error("Auth exchange error:", error)
@@ -29,34 +31,57 @@ export async function GET(request: NextRequest) {
         .select()
         .eq("id", data.user.id)
         .single()
+      
+      console.log("User check result:", { user, userError })
         
       if (userError && userError.code !== "PGRST116") {
         console.error("Error checking for existing user:", userError)
+        return NextResponse.redirect(new URL("/login?error=user_check", request.url))
       }
 
       // If user doesn't exist, create it
       if (!user) {
-        const { error: insertError } = await supabase.from("users").insert({
+        console.log("Creating new user profile:", {
           id: data.user.id,
           email: data.user.email,
           name: data.user.user_metadata.full_name || data.user.user_metadata.name || "",
           role: userRole,
+          avatar_url: data.user.user_metadata.avatar_url || null,
         })
+
+        const { data: newUser, error: insertError } = await supabase
+          .from("users")
+          .insert({
+            id: data.user.id,
+            email: data.user.email,
+            name: data.user.user_metadata.full_name || data.user.user_metadata.name || "",
+            role: userRole,
+            avatar_url: data.user.user_metadata.avatar_url || null,
+          })
+          .select()
+          .single()
+
+        console.log("User creation result:", { newUser, insertError })
 
         if (insertError) {
           console.error("Error creating user profile:", insertError)
+          return NextResponse.redirect(new URL("/login?error=user_create", request.url))
+        }
+
+        if (!newUser) {
+          console.error("No user data returned after creation")
+          return NextResponse.redirect(new URL("/login?error=user_create_no_data", request.url))
         }
       }
+
+      // URL to redirect to after sign in process completes
+      return NextResponse.redirect(new URL("/dashboard", request.url))
     } catch (profileError) {
       console.error("Error handling user profile:", profileError)
-      // Continue even if profile creation fails
+      return NextResponse.redirect(new URL("/login?error=profile_error", request.url))
     }
-
-    // URL to redirect to after sign in process completes
-    return NextResponse.redirect(new URL("/dashboard", request.url))
   } catch (error) {
     console.error("Auth callback error:", error)
-    // Redirect to home page if there's an error
     return NextResponse.redirect(new URL("/?error=callback_failed", request.url))
   }
 }

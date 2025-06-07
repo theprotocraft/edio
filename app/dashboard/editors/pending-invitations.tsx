@@ -12,13 +12,17 @@ import { CheckCircle, XCircle } from "lucide-react"
 
 interface PendingInvitation {
   id: string
-  project_owner_id: string
-  editor_email: string
+  youtuber_id: string
+  editor_id: string
   status: "pending" | "active" | "rejected"
   created_at: string
   project_owner: {
     email: string
-    full_name: string | null
+    name: string | null
+  }
+  youtuber: {
+    email: string
+    name: string | null
   }
 }
 
@@ -29,6 +33,7 @@ interface PendingInvitationsProps {
 export function PendingInvitations({ user }: PendingInvitationsProps) {
   const [invitations, setInvitations] = useState<PendingInvitation[]>([])
   const [loading, setLoading] = useState(true)
+  const [userRole, setUserRole] = useState<"editor" | "youtuber" | null>(null)
   const supabase = createClientComponentClient()
   const router = useRouter()
   const { toast } = useToast()
@@ -39,35 +44,61 @@ export function PendingInvitations({ user }: PendingInvitationsProps) {
 
   const fetchInvitations = async () => {
     try {
-      const { data, error } = await supabase
-        .from("project_editors")
+      // First check if the user is an editor or youtuber
+      const { data: roleData, error: roleError } = await supabase
+        .from("users")
+        .select("id, role")
+        .eq("id", user.id)
+        .maybeSingle()
+
+      if (roleError) {
+        console.error("Error checking user role:", roleError)
+        throw roleError
+      }
+
+      setUserRole(roleData?.role as "editor" | "youtuber" | null)
+
+      let query = supabase
+        .from("youtuber_editors")
         .select(`
           *,
-          project:project_id (
-            project_title,
-            owner:owner_id (
-              email,
-              name
-            )
+          youtuber:youtuber_id (
+            email,
+            name
           ),
           editor:editor_id (
             email,
             name
           )
         `)
-        .eq("project.owner.email", user.email)
         .eq("status", "pending")
+
+      // If user is an editor, get invitations sent to them
+      if (roleData?.role === "editor") {
+        query = query.eq("editor_id", user.id)
+      }
+      // If user is a youtuber, get invitations they sent
+      else if (roleData?.role === "youtuber") {
+        query = query.eq("youtuber_id", user.id)
+      }
+
+      const { data, error } = await query
 
       if (error) {
         console.error("Error fetching invitations:", error)
         throw error
       }
 
-      // Transform the data to include full_name
+      // Transform the data
       const transformedData = data?.map(invitation => ({
         ...invitation,
         project_owner: {
-          ...invitation.owner
+          email: invitation.youtuber.email,
+          name: invitation.youtuber.name
+        },
+        youtuber: {
+          email: invitation.youtuber.email,
+          name: invitation.youtuber.name
         }
       })) || []
 
@@ -88,32 +119,91 @@ export function PendingInvitations({ user }: PendingInvitationsProps) {
     setLoading(true)
 
     try {
-      // Update project_editors table
+      // Update youtuber_editors table
       const { error: editorError } = await supabase
-        .from("project_editors")
+        .from("youtuber_editors")
         .update({
           status: accept ? "active" : "rejected",
-          editor_id: accept ? user.id : null,
         })
         .eq("id", invitationId)
+        .eq("editor_id", user.id)
 
       if (editorError) {
         console.error("Error updating invitation:", editorError)
         throw editorError
       }
 
-      // Create notification for project owner
-      const { error: notificationError } = await supabase.from("notifications").insert({
-        user_id: invitations.find(inv => inv.id === invitationId)?.project_owner_id,
-        type: "editor_response",
-        content: `${user.email} has ${accept ? "accepted" : "rejected"} your editor invitation`,
-        metadata: { editor_id: user.id },
-        invitation_status: accept ? "accepted" : "rejected",
-      })
+      // Get the invitation details for notification
+      const { data: invitation, error: fetchError } = await supabase
+        .from("youtuber_editors")
+        .select("youtuber_id, editor:editor_id(email)")
+        .eq("id", invitationId)
+        .single()
+
+      if (fetchError) {
+        console.error("Error fetching invitation details:", fetchError)
+        throw fetchError
+      }
+
+      // Update the original invitation notification for the editor
+      const { error: updateNotificationError } = await supabase
+        .from("notifications")
+        .update({
+          read: true,
+          content: `You have ${accept ? "accepted" : "rejected"} the editor invitation`,
+          metadata: {
+            status: accept ? "accepted" : "rejected",
+            invitation_id: invitationId
+          }
+        })
+        .eq("user_id", user.id)  // Editor's notification
+        .eq("type", "editor_invite")
+        .eq("metadata->invitation_id", invitationId)
+
+      if (updateNotificationError) {
+        console.error("Error updating invitation notification:", updateNotificationError)
+        throw updateNotificationError
+      }
+
+      // Create new notification for YouTuber about the response
+      const { error: notificationError } = await supabase
+        .from("notifications")
+        .insert({
+          user_id: invitation.youtuber_id,
+          type: "editor_response",
+          content: `${user.email} has ${accept ? "accepted" : "rejected"} your editor invitation`,
+          metadata: { 
+            editor_id: user.id,
+            status: accept ? "accepted" : "rejected",
+            invitation_id: invitationId
+          },
+          read: false
+        })
 
       if (notificationError) {
         console.error("Error creating notification:", notificationError)
         throw notificationError
+      }
+
+      // Also update any existing response notifications for this invitation
+      const { error: updateResponseError } = await supabase
+        .from("notifications")
+        .update({
+          read: true,
+          content: `${user.email} has ${accept ? "accepted" : "rejected"} your editor invitation`,
+          metadata: {
+            editor_id: user.id,
+            status: accept ? "accepted" : "rejected",
+            invitation_id: invitationId
+          }
+        })
+        .eq("user_id", invitation.youtuber_id)
+        .eq("type", "editor_response")
+        .eq("metadata->invitation_id", invitationId)
+
+      if (updateResponseError) {
+        console.error("Error updating response notification:", updateResponseError)
+        throw updateResponseError
       }
 
       toast({
@@ -134,6 +224,46 @@ export function PendingInvitations({ user }: PendingInvitationsProps) {
     }
   }
 
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "pending":
+        return <Badge variant="secondary">Pending</Badge>
+      case "active":
+        return <Badge variant="default">Active</Badge>
+      case "rejected":
+        return <Badge variant="destructive">Rejected</Badge>
+      default:
+        return null
+    }
+  }
+
+  const getStatusMessage = (status: string) => {
+    if (userRole === "editor") {
+      switch (status) {
+        case "pending":
+          return "Waiting for your response"
+        case "active":
+          return "You are actively collaborating"
+        case "rejected":
+          return "You have rejected this invitation"
+        default:
+          return ""
+      }
+    } else if (userRole === "youtuber") {
+      switch (status) {
+        case "pending":
+          return "Waiting for editor to respond"
+        case "active":
+          return "Editor has accepted your invitation"
+        case "rejected":
+          return "Editor has rejected your invitation"
+        default:
+          return ""
+      }
+    }
+    return ""
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-[60vh]">
@@ -151,41 +281,42 @@ export function PendingInvitations({ user }: PendingInvitationsProps) {
 
       <div className="grid gap-4">
         {invitations.map((invitation) => (
-          console.log(invitation),
           <Card key={invitation.id} className="shadow-md">
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
                 <span>Editor Invitation</span>
-                <Badge variant="secondary">Pending</Badge>
+                {getStatusBadge(invitation.status)}
               </CardTitle>
               <CardDescription>
-                To: {invitation.editor.name || invitation.editor.email}
+                {userRole === "editor" ? "From: " : "To: "} {userRole === "editor" ? invitation.project_owner.name || invitation.project_owner.email : invitation.youtuber.name || invitation.youtuber.email}
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="flex flex-col space-y-4">
                 <p className="text-sm text-muted-foreground">
-                  You have been invited to collaborate as an editor on {invitation.project_owner.full_name || invitation.project_owner.email}'s project.
+                  {getStatusMessage(invitation.status)}
                 </p>
-                {/* <div className="flex space-x-4">
-                  <Button
-                    onClick={() => handleInvitation(invitation.id, true)}
-                    className="flex-1"
-                    disabled={loading}
-                  >
-                    <CheckCircle className="w-4 h-4 mr-2" />
-                    Accept
-                  </Button>
-                  <Button
-                    onClick={() => handleInvitation(invitation.id, false)}
-                    variant="destructive"
-                    className="flex-1"
-                    disabled={loading}
-                  >
-                    <XCircle className="w-4 h-4 mr-2" />
-                    Reject
-                  </Button>
-                </div> */}
+                {invitation.status === "pending" && userRole === "editor" && (
+                  <div className="flex space-x-4">
+                    <Button
+                      onClick={() => handleInvitation(invitation.id, true)}
+                      className="flex-1"
+                      disabled={loading}
+                    >
+                      <CheckCircle className="w-4 h-4 mr-2" />
+                      Accept
+                    </Button>
+                    <Button
+                      onClick={() => handleInvitation(invitation.id, false)}
+                      variant="destructive"
+                      className="flex-1"
+                      disabled={loading}
+                    >
+                      <XCircle className="w-4 h-4 mr-2" />
+                      Reject
+                    </Button>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
