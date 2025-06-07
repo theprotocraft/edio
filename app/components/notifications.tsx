@@ -17,7 +17,6 @@ interface Notification {
   content: string
   metadata: any
   read: boolean
-  invitation_status?: string
   created_at: string
 }
 

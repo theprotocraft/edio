@@ -11,7 +11,7 @@ export async function fetchProject(id: string) {
     .select(`
       *,
       owner:users!projects_owner_id_fkey(id),
-      editors:project_editors(editor_id)
+      editors:youtuber_editors(editor_id)
     `)
     .eq("id", id)
     .single()
@@ -436,22 +436,20 @@ export async function fetchEditors() {
       return []
     }
 
-    // Get editors who have been invited by this creator
-    const { data: invites, error: invitesError } = await supabase
-      .from("editor_invites")
-      .select("editor_id, editor_email, status")
-      .eq("creator_id", user.id)
-      .in("status", ["accepted"])
+    // Get editors who are actively associated with this creator through youtuber_editors
+    const { data: editorRelations, error: relationsError } = await supabase
+      .from("youtuber_editors")
+      .select("editor_id")
+      .eq("youtuber_id", user.id)
+      .eq("status", "active")  // Only get active editors
 
-    if (invitesError) {
-      console.error("Error fetching editor invites:", invitesError)
+    if (relationsError) {
+      console.error("Error fetching editor relations:", relationsError)
       return []
     }
 
-    // Extract editor IDs that aren't null (already registered)
-    const editorIds = invites
-      .filter(invite => invite.editor_id !== null)
-      .map(invite => invite.editor_id)
+    // Extract editor IDs
+    const editorIds = editorRelations.map(relation => relation.editor_id)
 
     if (editorIds.length === 0) {
       return []
@@ -460,7 +458,7 @@ export async function fetchEditors() {
     // Fetch the editor details
     const { data: editors, error: editorsError } = await supabase
       .from("users")
-      .select("id, name, email, avatar_url")
+      .select("*")
       .in("id", editorIds)
 
     if (editorsError) {
@@ -481,9 +479,9 @@ export async function assignEditorToProject(projectId: string, editorId: string)
   try {
     // Check if the editor is already assigned to the project
     const { data: existingAssignment, error: checkError } = await supabase
-      .from("project_editors")
+      .from("youtuber_editors")
       .select("id")
-      .eq("project_id", projectId)
+      .eq("youtuber_id", projectId)
       .eq("editor_id", editorId)
       .maybeSingle()
 
@@ -498,9 +496,9 @@ export async function assignEditorToProject(projectId: string, editorId: string)
 
     // Assign the editor to the project
     const { error: assignError } = await supabase
-      .from("project_editors")
+      .from("youtuber_editors")
       .insert({
-        project_id: projectId,
+        youtuber_id: projectId,
         editor_id: editorId,
       })
 

@@ -6,7 +6,7 @@ DROP TABLE IF EXISTS notifications CASCADE;
 DROP TABLE IF EXISTS messages CASCADE;
 DROP TABLE IF EXISTS video_versions CASCADE;
 DROP TABLE IF EXISTS uploads CASCADE;
-DROP TABLE IF EXISTS project_editors CASCADE;
+DROP TABLE IF EXISTS youtuber_editors CASCADE;
 DROP TABLE IF EXISTS projects CASCADE;
 DROP TABLE IF EXISTS users CASCADE;
 
@@ -32,13 +32,15 @@ CREATE TABLE projects (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Create project_editors mapping table
-CREATE TABLE project_editors (
+-- Create youtuber_editors mapping table
+CREATE TABLE youtuber_editors (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  youtuber_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   editor_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'active', 'rejected')),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  UNIQUE(project_id, editor_id)
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(youtuber_id, editor_id)
 );
 
 -- Create video_versions table
@@ -95,7 +97,7 @@ CREATE TABLE notifications (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   message TEXT NOT NULL,
-  type TEXT NOT NULL DEFAULT 'info' CHECK (type IN ('info', 'action', 'warning', 'success', 'editor_invite')),
+  type TEXT NOT NULL DEFAULT 'info' CHECK (type IN ('info', 'action', 'warning', 'success', 'editor_invite', 'editor_response')),
   read BOOLEAN NOT NULL DEFAULT FALSE,
   project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -119,7 +121,7 @@ ALTER TABLE project_editors
 -- Enable Row Level Security
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE projects ENABLE ROW LEVEL SECURITY;
-ALTER TABLE project_editors ENABLE ROW LEVEL SECURITY;
+ALTER TABLE youtuber_editors ENABLE ROW LEVEL SECURITY;
 ALTER TABLE video_versions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE uploads ENABLE ROW LEVEL SECURITY;
 ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
@@ -142,19 +144,18 @@ CREATE POLICY "Owners can CRUD their projects" ON projects
 CREATE POLICY "Editors can read their assigned projects" ON projects
   FOR SELECT USING (
     EXISTS (
-      SELECT 1 FROM project_editors
-      WHERE project_id = projects.id AND editor_id = auth.uid()
+      SELECT 1 FROM youtuber_editors
+      WHERE youtuber_id = projects.owner_id AND editor_id = auth.uid()
+      AND status = 'active'
     )
   );
 
--- Project editors mapping - owners can manage
-CREATE POLICY "Project owners can manage project editors" ON project_editors
-  FOR ALL USING (
-    EXISTS (
-      SELECT 1 FROM projects
-      WHERE projects.id = project_editors.project_id AND projects.owner_id = auth.uid()
-    )
-  );
+-- Youtuber-Editors relationship policies
+CREATE POLICY "Youtubers can manage their editors" ON youtuber_editors
+  FOR ALL USING (youtuber_id = auth.uid());
+
+CREATE POLICY "Editors can view their relationships" ON youtuber_editors
+  FOR SELECT USING (editor_id = auth.uid());
 
 -- Video versions - project members can view
 CREATE POLICY "Project members can view video versions" ON video_versions
@@ -165,9 +166,10 @@ CREATE POLICY "Project members can view video versions" ON video_versions
       (
         projects.owner_id = auth.uid() OR 
         EXISTS (
-          SELECT 1 FROM project_editors
-          WHERE project_editors.project_id = video_versions.project_id
-          AND project_editors.editor_id = auth.uid()
+          SELECT 1 FROM youtuber_editors
+          WHERE youtuber_id = projects.owner_id
+          AND editor_id = auth.uid()
+          AND status = 'active'
         )
       )
     )
@@ -186,9 +188,10 @@ CREATE POLICY "Project members can view uploads" ON uploads
       (
         projects.owner_id = auth.uid() OR 
         EXISTS (
-          SELECT 1 FROM project_editors
-          WHERE project_editors.project_id = uploads.project_id
-          AND project_editors.editor_id = auth.uid()
+          SELECT 1 FROM youtuber_editors
+          WHERE youtuber_id = projects.owner_id
+          AND editor_id = auth.uid()
+          AND status = 'active'
         )
       )
     )
@@ -207,9 +210,10 @@ CREATE POLICY "Project members can read messages" ON messages
       (
         projects.owner_id = auth.uid() OR 
         EXISTS (
-          SELECT 1 FROM project_editors
-          WHERE project_editors.project_id = messages.project_id
-          AND project_editors.editor_id = auth.uid()
+          SELECT 1 FROM youtuber_editors
+          WHERE youtuber_id = projects.owner_id
+          AND editor_id = auth.uid()
+          AND status = 'active'
         )
       )
     )
@@ -224,9 +228,10 @@ CREATE POLICY "Project members can create messages" ON messages
       (
         projects.owner_id = auth.uid() OR 
         EXISTS (
-          SELECT 1 FROM project_editors
-          WHERE project_editors.project_id = messages.project_id
-          AND project_editors.editor_id = auth.uid()
+          SELECT 1 FROM youtuber_editors
+          WHERE youtuber_id = projects.owner_id
+          AND editor_id = auth.uid()
+          AND status = 'active'
         )
       )
     )
@@ -255,6 +260,12 @@ BEFORE UPDATE ON projects
 FOR EACH ROW
 EXECUTE PROCEDURE update_modified_column();
 
+-- Add trigger for youtuber_editors table
+CREATE TRIGGER update_youtuber_editors_modtime
+BEFORE UPDATE ON youtuber_editors
+FOR EACH ROW
+EXECUTE PROCEDURE update_modified_column();
+
 CREATE POLICY "Creator manages own invites"
   ON editor_invites FOR ALL USING (creator_id = auth.uid());
 
@@ -262,4 +273,4 @@ CREATE POLICY "Editor reads own invites"
   ON editor_invites FOR SELECT USING (
     editor_id = auth.uid()
     OR (editor_id IS NULL AND lower(editor_email) = lower(auth.jwt() ->> 'email'))
-);
+  );

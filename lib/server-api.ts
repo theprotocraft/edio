@@ -29,12 +29,8 @@ export async function fetchDashboardData() {
       .from("projects")
       .select(`
         *,
-        owner:users(id, name, email),
-        editors:project_editors(
-          id, 
-          editor_id,
-          editor:users(id, name, email)
-        )
+        owner:users!projects_owner_id_fkey(id, name, email),
+        editors:youtuber_editors(editor_id, editor:users(id, name, email))
       `)
       .eq("owner_id", user.id)
       .order("updated_at", { ascending: false })
@@ -46,19 +42,15 @@ export async function fetchDashboardData() {
 
     // Fetch projects where user is an editor
     const { data: editedProjects, error: editedError } = await supabase
-      .from("project_editors")
+      .from("youtuber_editors")
       .select(`
         id,
         project_id,
         editor_id,
         project:projects(
           *,
-          owner:users(id, name, email),
-          editors:project_editors(
-            id, 
-            editor_id,
-            editor:users(id, name, email)
-          )
+          owner:users!projects_owner_id_fkey(id, name, email),
+          editors:youtuber_editors(editor_id, editor:users(id, name, email))
         )
       `)
       .eq("editor_id", user.id)
@@ -147,9 +139,15 @@ export async function fetchProjects() {
     }
 
     // Fetch projects where user is an editor
-    const { data: editorProjects, error: editorError } = await supabase
-      .from("project_editors")
-      .select("project_id")
+    const { data: editedProjects, error: editedError } = await supabase
+      .from("youtuber_editors")
+      .select(`
+        project:projects(
+          *,
+          owner:users!projects_owner_id_fkey(id, name, email),
+          editors:youtuber_editors(editor_id, editor:users(id, name, email))
+        )
+      `)
       .eq("editor_id", user.id)
       
     if (editorError) {
@@ -205,7 +203,11 @@ export async function fetchProjectDetails(id: string) {
     // Step 1: Fetch basic project data
     const { data: basicProject, error: basicError } = await supabase
       .from("projects")
-      .select("*")
+      .select(`
+        *,
+        owner:users!projects_owner_id_fkey(id, name, email),
+        editors:youtuber_editors(editor_id, editor:users(id, name, email))
+      `)
       .eq("id", id)
       .single()
       

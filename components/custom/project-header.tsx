@@ -273,8 +273,8 @@ export function ProjectHeader({ project, userRole }: ProjectHeaderProps) {
                                 <SelectItem key={editor.id} value={editor.id}>
                                   <div className="flex items-center">
                                     <Avatar className="h-6 w-6 mr-2">
-                                      <AvatarImage src={editor.avatar_url} alt={editor.name} />
-                                      <AvatarFallback>{editor.name?.charAt(0).toUpperCase() || 'E'}</AvatarFallback>
+                                      <AvatarImage src={editor.avatar_url || ""} alt={editor.name} />
+                                      <AvatarFallback>{getInitials(editor.name)}</AvatarFallback>
                                     </Avatar>
                                     <span>{editor.name || editor.email}</span>
                                   </div>
