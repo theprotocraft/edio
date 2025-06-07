@@ -11,23 +11,23 @@ interface ProjectPageProps {
 
 export default async function ProjectPage({ params }: ProjectPageProps) {
   try {
-    const { id } = await params
-    const { project, uploads, versions, messages, userRole, userId } = await fetchProjectDetails(id)
-
-    if (!project) {
+    const { id } = params
+    const result = await fetchProjectDetails(id)
+    
+    if (!result.project) {
       notFound()
     }
 
     return (
       <div>
-        <ProjectHeader project={project} userRole={userRole as "creator" | "editor"} />
+        <ProjectHeader project={result.project} userRole={result.userRole as "creator" | "editor"} />
         <ProjectTabs
-          project={project}
-          uploads={uploads || []}
-          versions={versions || []}
-          messages={messages || []}
-          userRole={userRole as "creator" | "editor"}
-          userId={userId}
+          project={result.project}
+          uploads={result.uploads || []}
+          versions={result.versions || []}
+          messages={result.messages || []}
+          userRole={result.userRole as "creator" | "editor"}
+          userId={result.userId}
         />
       </div>
     )

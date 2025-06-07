@@ -29,8 +29,12 @@ export async function fetchDashboardData() {
       .from("projects")
       .select(`
         *,
-        owner:users!projects_owner_id_fkey(id, name, email),
-        editors:project_editors(editor_id, editor:users(id, name, email))
+        owner:users(id, name, email),
+        editors:project_editors(
+          id, 
+          editor_id,
+          editor:users(id, name, email)
+        )
       `)
       .eq("owner_id", user.id)
       .order("updated_at", { ascending: false })
@@ -44,10 +48,17 @@ export async function fetchDashboardData() {
     const { data: editedProjects, error: editedError } = await supabase
       .from("project_editors")
       .select(`
+        id,
+        project_id,
+        editor_id,
         project:projects(
           *,
-          owner:users!projects_owner_id_fkey(id, name, email),
-          editors:project_editors(editor_id, editor:users(id, name, email))
+          owner:users(id, name, email),
+          editors:project_editors(
+            id, 
+            editor_id,
+            editor:users(id, name, email)
+          )
         )
       `)
       .eq("editor_id", user.id)
@@ -114,11 +125,7 @@ export async function fetchProjects() {
     // Fetch owned projects
     const { data: ownedProjects, error: ownedError } = await supabase
       .from("projects")
-      .select(`
-        *,
-        owner:users!projects_owner_id_fkey(id, name, email),
-        editors:project_editors(editor_id, editor:users(id, name, email))
-      `)
+      .select("*")
       .eq("owner_id", user.id)
       .order("updated_at", { ascending: false })
       
@@ -127,25 +134,36 @@ export async function fetchProjects() {
     }
 
     // Fetch projects where user is an editor
-    const { data: editedProjects, error: editedError } = await supabase
+    const { data: editorProjects, error: editorError } = await supabase
       .from("project_editors")
-      .select(`
-        project:projects(
-          *,
-          owner:users!projects_owner_id_fkey(id, name, email),
-          editors:project_editors(editor_id, editor:users(id, name, email))
-        )
-      `)
+      .select("project_id")
       .eq("editor_id", user.id)
       
-    if (editedError) {
-      console.error("Error fetching edited projects:", editedError)
+    if (editorError) {
+      console.error("Error fetching editor projects:", editorError)
+    }
+
+    // If user is an editor on any projects, fetch those project details
+    let editedProjects = []
+    if (editorProjects && editorProjects.length > 0) {
+      const projectIds = editorProjects.map((ep: { project_id: string }) => ep.project_id)
+      
+      const { data: projects, error } = await supabase
+        .from("projects")
+        .select("*")
+        .in("id", projectIds)
+      
+      if (error) {
+        console.error("Error fetching editor project details:", error)
+      } else {
+        editedProjects = projects || []
+      }
     }
 
     // Combine projects
     const projects = [
       ...(ownedProjects || []),
-      ...(editedProjects?.map((item: { project: any }) => item.project) || [])
+      ...editedProjects
     ].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
 
     const isCreator = userData?.role === "youtuber"
@@ -165,41 +183,71 @@ export async function fetchProjectDetails(id: string) {
   try {
     const supabase = await createServerClient()
 
+    // Get current user
     const { data: { user } } = await supabase.auth.getUser()
-
     if (!user) {
       return { project: null }
     }
-
-    // Fetch project details
-    const { data: project, error: projectError } = await supabase
+    
+    // Step 1: Fetch basic project data
+    const { data: basicProject, error: basicError } = await supabase
       .from("projects")
-      .select(`
-        *,
-        owner:users!projects_owner_id_fkey(id, name, email),
-        editors:project_editors(editor_id, editor:users(id, name, email))
-      `)
+      .select("*")
       .eq("id", id)
       .single()
       
-    if (projectError) {
-      console.error("Error fetching project details:", projectError)
+    if (basicError) {
+      console.error("Error fetching basic project:", basicError)
       return { project: null }
     }
-
-    if (!project) {
+    
+    if (!basicProject) {
       return { project: null }
     }
-
-    // Check if user has access to this project
-    const userIsOwner = project.owner_id === user.id
-    const userIsEditor = project.editors.some((editor: any) => editor.editor_id === user.id)
-
+    
+    // Step 2: Get owner data
+    const { data: owner, error: ownerError } = await supabase
+      .from("users")
+      .select("id, name, email")
+      .eq("id", basicProject.owner_id)
+      .single()
+      
+    if (ownerError && ownerError.code !== 'PGRST116') {
+      console.error("Error fetching owner:", ownerError)
+    }
+    
+    // Step 3: Get editors data
+    const { data: editors, error: editorsError } = await supabase
+      .from("project_editors")
+      .select(`
+        id,
+        editor_id,
+        editor:users(id, name, email)
+      `)
+      .eq("project_id", id)
+      
+    if (editorsError) {
+      console.log("hereiii")
+      console.log(editorsError)
+      console.error("Error fetching editors:", editorsError)
+    }
+    
+    // Check access rights
+    const userIsOwner = basicProject.owner_id === user.id
+    const userIsEditor = editors?.some((e: { editor_id: string }) => e.editor_id === user.id) || false
+    
     if (!userIsOwner && !userIsEditor) {
       return { project: null }
     }
-
-    // Fetch project uploads
+    
+    // Combine project data
+    const project = {
+      ...basicProject,
+      owner: owner || null,
+      editors: editors || []
+    }
+    
+    // Step 4: Get uploads
     const { data: uploads, error: uploadsError } = await supabase
       .from("uploads")
       .select("*")
@@ -209,8 +257,8 @@ export async function fetchProjectDetails(id: string) {
     if (uploadsError) {
       console.error("Error fetching uploads:", uploadsError)
     }
-
-    // Fetch video versions
+    
+    // Step 5: Get versions
     const { data: versions, error: versionsError } = await supabase
       .from("video_versions")
       .select("*")
@@ -220,8 +268,8 @@ export async function fetchProjectDetails(id: string) {
     if (versionsError) {
       console.error("Error fetching versions:", versionsError)
     }
-
-    // Fetch chat messages
+    
+    // Step 6: Get messages
     const { data: messages, error: messagesError } = await supabase
       .from("messages")
       .select(`
@@ -234,17 +282,17 @@ export async function fetchProjectDetails(id: string) {
     if (messagesError) {
       console.error("Error fetching messages:", messagesError)
     }
-
+    
     return {
       project,
       uploads: uploads || [],
       versions: versions || [],
       messages: messages || [],
       userRole: userIsOwner ? "creator" : "editor",
-      userId: user.id,
+      userId: user.id
     }
   } catch (error) {
-    console.error("Error in fetchProjectDetails:", error)
+    console.error("Unexpected error in fetchProjectDetails:", error)
     return { project: null }
   }
 } 
