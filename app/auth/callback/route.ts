@@ -22,20 +22,21 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(new URL("/login?error=auth_exchange", request.url))
     }
 
-    try {
-      // Check if user profile exists
-      const { data: user, error: userError } = await supabase
-        .from("users")
-        .select()
-        .eq("id", data.user.id)
-        .single()
-        
-      if (userError && userError.code !== "PGRST116") {
-        console.error("Error checking for existing user:", userError)
-      }
+    // Check if user profile exists
+    const { data: user, error: userError } = await supabase
+      .from("users")
+      .select()
+      .eq("id", data.user.id)
+      .single()
+      
+    if (userError && userError.code !== "PGRST116") {
+      console.error("Error checking for existing user:", userError)
+    }
 
-      // If user doesn't exist, create it
-      if (!user) {
+    // If user doesn't exist, create it or redirect to role selection
+    if (!user) {
+      // If a role was specified (from registration), create the user
+      if (requestUrl.searchParams.has('role')) {
         const { error: insertError } = await supabase.from("users").insert({
           id: data.user.id,
           email: data.user.email,
@@ -45,11 +46,12 @@ export async function GET(request: NextRequest) {
 
         if (insertError) {
           console.error("Error creating user profile:", insertError)
+          return NextResponse.redirect(new URL("/login?error=profile_creation", request.url))
         }
+      } else {
+        // New user from sign-in flow, redirect to role selection
+        return NextResponse.redirect(new URL(`/select-role?session=${encodeURIComponent(code)}`, request.url))
       }
-    } catch (profileError) {
-      console.error("Error handling user profile:", profileError)
-      // Continue even if profile creation fails
     }
 
     // URL to redirect to after sign in process completes
