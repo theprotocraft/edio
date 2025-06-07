@@ -48,6 +48,7 @@ Represents a video editing project.
 | thumbnail_url | TEXT | Current active thumbnail |
 | status | TEXT | `pending`, `approved`, etc. |
 | created_at | TIMESTAMP | Default now() |
+| updated_at | TIMESTAMP | Auto-updated on change |
 
 ---
 
@@ -63,6 +64,7 @@ Each edited version of a video.
 | version_number | INT | Auto-increment per project |
 | file_url | TEXT | S3 upload link |
 | preview_url | TEXT | Pre-signed URL (if needed) |
+| notes | TEXT | Optional version notes |
 | created_at | TIMESTAMP | Default now() |
 
 ---
@@ -74,9 +76,12 @@ Tracks all file uploads (thumbnails, raw videos, etc.)
 | Column | Type | Notes |
 | --- | --- | --- |
 | id | UUID (PK) |  |
+| project_id | UUID (FK) | References `projects.id` |
 | user_id | UUID (FK) | Uploader |
 | file_url | TEXT | S3 URL |
 | file_type | TEXT | `video`, `thumbnail`, etc. |
+| file_name | TEXT | Original filename |
+| file_size | BIGINT | Size in bytes |
 | created_at | TIMESTAMP | Default now() |
 
 ---
@@ -91,7 +96,7 @@ Chat messages per project.
 | project_id | UUID (FK) | References `projects.id` |
 | sender_id | UUID (FK) | `users.id` |
 | content | TEXT | Message content |
-| type | TEXT | `text` or `system` |
+| type | TEXT | `text`, `system`, `feedback` |
 | created_at | TIMESTAMP |  |
 
 ---
@@ -117,21 +122,13 @@ Currently, one editor per project is allowed — this model supports multiple ed
 Tracks invitations between creators (YouTubers) and editors — independent of projects.
 
 | Column | Type | Notes |
-
 | --- | --- | --- |
-
 | id | UUID (PK) |  |
-
 | creator_id | UUID (FK) | References `users.id` (the YouTuber who sends the invite) |
-
 | editor_id | UUID (FK) | References `users.id` — nullable until the invite is accepted |
-
 | editor_email | TEXT | Email address the invitation was sent to |
-
 | status | TEXT | `pending`, `accepted`, `declined`, `revoked` |
-
 | created_at | TIMESTAMP | Default `now()` |
-
 | accepted_at | TIMESTAMP | Nullable — set when the invite is accepted |
 
 ---
@@ -147,6 +144,7 @@ In-app notification system.
 | message | TEXT | Display message |
 | type | TEXT | `info`, `action`, etc. |
 | read | BOOLEAN | Has the user seen it? |
+| project_id | UUID (FK) | Optional reference to project |
 | created_at | TIMESTAMP | Default now() |
 
 ---
@@ -156,24 +154,73 @@ In-app notification system.
 - ✅ **Supabase OAuth (Google only)**
 - ❌ No email/password
 - 🧠 Use Supabase's `user_metadata` to distinguish `youtuber` and `editor` roles
+- 🎯 New users select role on first login
 
 ---
 
 ## 🔒 Row-Level Security (RLS)
 
-**RLS will be designed but turned on later.**
+RLS is now enabled on all tables to enforce data access control.
 
-Tables like `projects`, `video_versions`, `messages`, etc. will include `user_id` or `owner_id` columns for filtering.
-
-Examples:
+Key RLS policies include:
 
 ```sql
--- Allow users to see only their own projects
-CREATE POLICY "User can read own projects"
-ON projects
-FOR SELECT
-USING (owner_id = auth.uid());
+-- Projects - owners can CRUD their own projects
+CREATE POLICY "Owners can CRUD their projects" ON projects
+  FOR ALL USING (auth.uid() = owner_id);
+
+-- Projects - editors can read projects they are assigned to
+CREATE POLICY "Editors can read their assigned projects" ON projects
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM project_editors
+      WHERE project_id = projects.id AND editor_id = auth.uid()
+    )
+  );
+
+-- Project editors mapping - owners can manage
+CREATE POLICY "Project owners can manage project editors" ON project_editors
+  FOR ALL USING (
+    EXISTS (
+      SELECT 1 FROM projects
+      WHERE projects.id = project_editors.project_id AND projects.owner_id = auth.uid()
+    )
+  );
 ```
+
+---
+
+## 📦 Data Fetching Patterns
+
+To avoid complexity with nested relationships, we use a multi-step fetching approach:
+
+```typescript
+// Example: Fetching project details
+// Step 1: Fetch basic project data
+const { data: basicProject } = await supabase
+  .from("projects")
+  .select("*")
+  .eq("id", projectId)
+  .single();
+
+// Step 2: Fetch related data (owners, editors, etc.)
+const { data: editors } = await supabase
+  .from("project_editors")
+  .select(`
+    id,
+    editor_id,
+    editor:users(id, name, email)
+  `)
+  .eq("project_id", projectId);
+
+// Step 3: Combine the data
+const project = {
+  ...basicProject,
+  editors: editors || []
+};
+```
+
+This approach is more reliable than complex nested queries when working with Supabase.
 
 ---
 
@@ -202,24 +249,16 @@ USING (owner_id = auth.uid());
 
 - Versioning handled at backend via `version_number`
 - Project status transitions:
-    - `draft` → `in_review` → `needs_changes` → `approved`
-
----
-
-## 🧲 API / Functions (Optional)
-
-- Built-in API routes via **Next.js App Router**
-- Could migrate to Supabase Edge Functions for:
-    - Triggering notifications
-    - Email alerts
-    - Generating pre-signed URLs
+    - `pending` → `in_review` → `needs_changes` → `approved`
+- Editor assignment via `project_editors` table
 
 ---
 
 ## ✅ Summary
 
 - Supabase as secure backend + auth
-- S3 for file storage
+- S3 for file storage with presigned URLs
 - Strong versioning model
-- Scalable table schema with future growth in mind
-- RLS-ready from day one
+- Row-Level Security enabled for data protection
+- Simplified data fetching with step-by-step approach
+- Clear foreign key relationships between tables
