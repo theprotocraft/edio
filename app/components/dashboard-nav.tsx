@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { LayoutDashboard, FileVideo, Users } from "lucide-react"
+import { LayoutDashboard, FileVideo, Users, Settings } from "lucide-react"
 import DashboardLogout from "@/components/dashboard-logout"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import { useEffect, useState } from "react"
@@ -59,6 +59,15 @@ export function DashboardNav() {
           </Button>
         </Link>
       )}
+      <Link href="/dashboard/settings">
+        <Button
+          variant={pathname === "/dashboard/settings" ? "default" : "ghost"}
+          className="w-full justify-start"
+        >
+          <Settings className="mr-2 h-5 w-5" />
+          Settings
+        </Button>
+      </Link>
       <DashboardLogout />
     </nav>
   )
