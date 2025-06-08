@@ -444,6 +444,11 @@ export async function sendMessage({
 
 export async function getPresignedViewUrl(fileUrl: string) {
   try {
+    // Validate that fileUrl is a valid URL string
+    if (!fileUrl || typeof fileUrl !== 'string') {
+      throw new Error('Invalid file URL provided');
+    }
+    
     // Extract the file path from the full S3 URL
     const url = new URL(fileUrl);
     const filePath = url.pathname.startsWith('/') ? url.pathname.substring(1) : url.pathname;

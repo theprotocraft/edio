@@ -225,7 +225,7 @@ export async function fetchProjectDetails(id: string) {
       .eq("youtuber_id", basicProject.owner_id)
       
     if (editorsError) {
-      console.error("Error fetching editors:", editorsError)
+      // Log error server-side only
     }
     
     // Check access rights

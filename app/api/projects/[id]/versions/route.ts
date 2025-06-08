@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createServerClient } from "@/lib/supabase-server"
-import { generatePresignedUrl } from "@/lib/s3-service"
+import { generateVersionUploadUrl } from "@/lib/s3-service"
 
 export async function POST(
   request: NextRequest,
@@ -8,7 +8,8 @@ export async function POST(
 ) {
   try {
     const { fileName, contentType, fileSize, notes } = await request.json()
-    const projectId = params.id
+    const { id } = await params
+    const projectId = id
 
     if (!fileName || !contentType || !fileSize || !projectId) {
       return NextResponse.json(
@@ -107,10 +108,19 @@ export async function POST(
     const s3Key = `projects/${projectId}/versions/v${nextVersionNumber}_${timestamp}_${cleanFileName}`
 
     // Generate presigned URL for upload
-    const { uploadUrl, fileUrl } = await generatePresignedUrl({
+    const result = await generateVersionUploadUrl({
       key: s3Key,
       contentType,
     })
+
+    if (result.error) {
+      return NextResponse.json(
+        { error: result.error },
+        { status: 500 }
+      )
+    }
+
+    const { uploadUrl, fileUrl } = result
 
     // Create the video version record
     const { data: version, error: versionError } = await supabase
