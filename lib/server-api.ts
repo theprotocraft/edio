@@ -227,8 +227,6 @@ export async function fetchProjectDetails(id: string) {
       .eq("project_id", id)
       
     if (editorsError) {
-      console.log("hereiii")
-      console.log(editorsError)
       console.error("Error fetching editors:", editorsError)
     }
     
@@ -250,7 +248,10 @@ export async function fetchProjectDetails(id: string) {
     // Step 4: Get uploads
     const { data: uploads, error: uploadsError } = await supabase
       .from("uploads")
-      .select("*")
+      .select(`
+        *,
+        uploader:users(id, name, avatar_url)
+      `)
       .eq("project_id", id)
       .order("created_at", { ascending: false })
       
@@ -258,10 +259,13 @@ export async function fetchProjectDetails(id: string) {
       console.error("Error fetching uploads:", uploadsError)
     }
     
-    // Step 5: Get versions
+    // Step 5: Get video versions
     const { data: versions, error: versionsError } = await supabase
       .from("video_versions")
-      .select("*")
+      .select(`
+        *,
+        uploader:users(id, name, avatar_url)
+      `)
       .eq("project_id", id)
       .order("version_number", { ascending: false })
       
@@ -274,7 +278,7 @@ export async function fetchProjectDetails(id: string) {
       .from("messages")
       .select(`
         *,
-        sender:users(id, name, email)
+        sender:users(id, name, avatar_url)
       `)
       .eq("project_id", id)
       .order("created_at", { ascending: true })
@@ -283,16 +287,19 @@ export async function fetchProjectDetails(id: string) {
       console.error("Error fetching messages:", messagesError)
     }
     
+    // Determine user role for this project
+    const userRole = userIsOwner ? "creator" : "editor"
+    
     return {
       project,
       uploads: uploads || [],
       versions: versions || [],
       messages: messages || [],
-      userRole: userIsOwner ? "creator" : "editor",
+      userRole,
       userId: user.id
     }
   } catch (error) {
-    console.error("Unexpected error in fetchProjectDetails:", error)
+    console.error("Error in fetchProjectDetails:", error)
     return { project: null }
   }
 } 
