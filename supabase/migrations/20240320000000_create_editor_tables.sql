@@ -97,26 +97,12 @@ CREATE TABLE notifications (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   message TEXT NOT NULL,
-  type TEXT NOT NULL DEFAULT 'info' CHECK (type IN ('info', 'action', 'warning', 'success', 'editor_invite', 'editor_response')),
+  type TEXT NOT NULL DEFAULT 'info' CHECK (type IN ('info', 'action', 'warning', 'success', 'editor_invite')),
   read BOOLEAN NOT NULL DEFAULT FALSE,
   project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   metadata JSONB DEFAULT '{}'
 );
-
--- Link project_editors.project_id → projects.id
-ALTER TABLE project_editors
-  ADD CONSTRAINT project_editors_project_id_fkey
-  FOREIGN KEY (project_id)
-  REFERENCES projects(id)
-  ON DELETE CASCADE;
-
--- Link project_editors.editor_id → users.id
-ALTER TABLE project_editors
-  ADD CONSTRAINT project_editors_editor_id_fkey
-  FOREIGN KEY (editor_id)
-  REFERENCES users(id)
-  ON DELETE CASCADE;
 
 -- Enable Row Level Security
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
@@ -273,4 +259,4 @@ CREATE POLICY "Editor reads own invites"
   ON editor_invites FOR SELECT USING (
     editor_id = auth.uid()
     OR (editor_id IS NULL AND lower(editor_email) = lower(auth.jwt() ->> 'email'))
-  );
+  ); 

@@ -15,7 +15,9 @@ export async function GET(request: NextRequest) {
 
     const supabase = await createRouteClient()
 
+    // Exchange the code for a session
     const { data, error } = await supabase.auth.exchangeCodeForSession(code)
+    console.log("Auth exchange result:", { data, error })
 
     if (error || !data?.user) {
       console.error("Auth exchange error:", error)
@@ -42,7 +44,22 @@ export async function GET(request: NextRequest) {
           email: data.user.email,
           name: data.user.user_metadata.full_name || data.user.user_metadata.name || "",
           role: userRole,
+          avatar_url: data.user.user_metadata.avatar_url || null,
         })
+
+        const { data: newUser, error: insertError } = await supabase
+          .from("users")
+          .insert({
+            id: data.user.id,
+            email: data.user.email,
+            name: data.user.user_metadata.full_name || data.user.user_metadata.name || "",
+            role: userRole,
+            avatar_url: data.user.user_metadata.avatar_url || null,
+          })
+          .select()
+          .single()
+
+        console.log("User creation result:", { newUser, insertError })
 
         if (insertError) {
           console.error("Error creating user profile:", insertError)
@@ -53,12 +70,8 @@ export async function GET(request: NextRequest) {
         return NextResponse.redirect(new URL(`/select-role?session=${encodeURIComponent(code)}`, request.url))
       }
     }
-
-    // URL to redirect to after sign in process completes
-    return NextResponse.redirect(new URL("/dashboard", request.url))
   } catch (error) {
     console.error("Auth callback error:", error)
-    // Redirect to home page if there's an error
     return NextResponse.redirect(new URL("/?error=callback_failed", request.url))
   }
 }

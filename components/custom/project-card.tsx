@@ -51,14 +51,14 @@ export function ProjectCard({ project, isCreator, className }: ProjectCardProps)
         </p>
         <div className="mt-4">
           <div className="flex items-center text-sm">
-            <span className="font-medium mr-2">{isCreator ? "Editor:" : "Creator:"}</span>
+            {/* <span className="font-medium mr-2">{isCreator ? "Editor:" : "Creator:"}</span>
             <span className="text-muted-foreground">
               {isCreator
                 ? project.editors && project.editors[0]?.editor?.name
                   ? project.editors[0].editor.name
                   : "Unassigned"
                 : project.owner?.name || "Unknown"}
-            </span>
+            </span> */}
           </div>
         </div>
       </CardContent>

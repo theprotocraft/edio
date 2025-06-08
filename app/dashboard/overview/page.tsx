@@ -5,17 +5,28 @@ import { Plus, Video, Clock, CheckCircle, AlertCircle } from "lucide-react"
 import { fetchDashboardData } from "@/lib/server-api"
 import { redirect } from "next/navigation"
 import { ProjectCard } from "@/components/custom/project-card"
+import { createServerClient } from "@/lib/supabase-server"
+import { Notifications } from "@/app/components/notifications"
+import { NotificationActions } from "@/app/components/notification-actions"
+import { NotificationsList } from "@/app/components/notifications-list"
 
-export default async function DashboardPage() {
+export default async function OverviewPage() {
+  const supabase = await createServerClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) {
+    redirect("/login")
+  }
+
   try {
-    const { user, projects, notifications, isCreator } = await fetchDashboardData()
-
-    if (!user) {
-      redirect("/login")
-    }
+    const { projects, notifications, isCreator } = await fetchDashboardData()
 
     return (
-      <div>
+      <div className="flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <h1 className="text-3xl font-bold">Overview</h1>
+          <Notifications />
+        </div>
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
           <Link href="/dashboard/projects/new">
@@ -83,7 +94,7 @@ export default async function DashboardPage() {
             <CardContent>
               {projects && projects.length > 0 ? (
                 <div className="space-y-4">
-                  {projects.slice(0, 4).map((project) => (
+                  {projects.slice(0, 4).map((project: Project) => (
                     <ProjectCard key={project.id} project={project} isCreator={isCreator} />
                   ))}
                 </div>
@@ -108,39 +119,22 @@ export default async function DashboardPage() {
               )}
             </CardContent>
           </Card>
-
-          <Card className="col-span-1">
-            <CardHeader>
-              <CardTitle>Recent Notifications</CardTitle>
-              <CardDescription>Stay updated on your project activities</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {notifications && notifications.length > 0 ? (
-                <div className="space-y-4">
-                  {notifications.map((notification) => (
-                    <div key={notification.id} className="flex items-start space-x-4 rounded-md border p-4">
-                      <div className="flex-1 space-y-1">
-                        <p className="font-medium">{notification.type}</p>
-                        <p className="text-sm text-muted-foreground">{notification.message}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {new Date(notification.created_at).toLocaleDateString()}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="flex items-center justify-center h-40 text-center">
-                  <p className="text-muted-foreground">No notifications yet</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          <NotificationsList notifications={notifications} />
         </div>
       </div>
     )
   } catch (error) {
-    console.error("Dashboard error:", error)
-    redirect("/login")
+    console.error("Error fetching dashboard data:", error)
+    return (
+      <div className="flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <h1 className="text-3xl font-bold">Overview</h1>
+          <Notifications />
+        </div>
+        <div className="text-center text-muted-foreground">
+          Error loading dashboard data. Please try again later.
+        </div>
+      </div>
+    )
   }
 }

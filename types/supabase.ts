@@ -59,25 +59,13 @@ export type Database = {
           updated_at?: string
         }
       }
-      project_editors: {
-        Row: {
-          id: string
-          project_id: string
-          editor_id: string
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          project_id: string
-          editor_id: string
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          project_id?: string
-          editor_id?: string
-          created_at?: string
-        }
+      youtuber_editors: {
+        id: string
+        youtuber_id: string
+        editor_id: string
+        status: 'pending' | 'active' | 'rejected'
+        created_at: string
+        updated_at: string
       }
       video_versions: {
         Row: {

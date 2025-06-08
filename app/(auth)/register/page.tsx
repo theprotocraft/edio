@@ -23,11 +23,12 @@ export default function RegisterPage() {
 
     try {
       const origin = window.location.origin
+      const redirectTo = `${origin}/auth/callback?role=${userRole}`
 
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: `${origin}/auth/callback`,
+          redirectTo: redirectTo,
           queryParams: {
             role: userRole,
             access_type: "offline",
