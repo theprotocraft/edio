@@ -28,6 +28,7 @@ CREATE TABLE projects (
   description TEXT,
   thumbnail_url TEXT,
   status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'in_review', 'needs_changes', 'approved')),
+  final_version_id UUID REFERENCES video_versions(id),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -139,6 +140,10 @@ CREATE POLICY "Users can update their own profile" ON users
 -- Projects - owners can CRUD their own projects
 CREATE POLICY "Owners can CRUD their projects" ON projects
   FOR ALL USING (auth.uid() = owner_id);
+
+-- Projects - owners can update final_version_id
+CREATE POLICY "Owners can update final version" ON projects
+  FOR UPDATE USING (auth.uid() = owner_id);
 
 -- Projects - editors can read projects they are assigned to
 CREATE POLICY "Editors can read their assigned projects" ON projects

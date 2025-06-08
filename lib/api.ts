@@ -141,23 +141,27 @@ export async function updateProject(id: string, {
   title, 
   videoTitle, 
   description,
-  hashtags
+  hashtags,
+  finalVersionId
 }: { 
-  title: string; 
+  title?: string; 
   videoTitle?: string; 
   description?: string;
   hashtags?: string;
+  finalVersionId?: string;
 }) {
   const supabase = createClient()
 
+  const updateData: any = {}
+  if (title !== undefined) updateData.project_title = title
+  if (videoTitle !== undefined) updateData.video_title = videoTitle
+  if (description !== undefined) updateData.description = description
+  if (hashtags !== undefined) updateData.hashtags = hashtags
+  if (finalVersionId !== undefined) updateData.final_version_id = finalVersionId
+
   const { error } = await supabase
     .from("projects")
-    .update({
-      project_title: title,
-      video_title: videoTitle,
-      description,
-      hashtags,
-    })
+    .update(updateData)
     .eq("id", id)
 
   if (error) {
@@ -319,6 +323,49 @@ export async function addVideoVersion({
   // Update project status to "in_review" if editor submitted a version
   if (userData?.role === "editor") {
     await supabase.from("projects").update({ status: "in_review" }).eq("id", projectId)
+  }
+}
+
+export async function uploadVideoVersion({
+  projectId,
+  file,
+  notes,
+  onProgress,
+}: {
+  projectId: string
+  file: File
+  notes: string
+  onProgress?: (progress: number) => void
+}): Promise<string> {
+  try {
+    // Step 1: Get a presigned URL for the video upload
+    const presignResponse = await fetch("/api/projects/" + projectId + "/versions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        fileName: file.name,
+        contentType: file.type,
+        fileSize: file.size,
+        notes,
+      }),
+    })
+
+    if (!presignResponse.ok) {
+      const errorData = await presignResponse.json()
+      throw new Error(errorData.error || "Failed to get upload URL")
+    }
+
+    const { uploadUrl, versionId } = await presignResponse.json()
+
+    // Step 2: Upload the file to S3 with progress tracking
+    await uploadFileWithProgress(uploadUrl, file, onProgress)
+
+    return versionId
+  } catch (error: any) {
+    console.error("Error uploading video version:", error)
+    throw new Error(error.message || "Failed to upload video version")
   }
 }
 
