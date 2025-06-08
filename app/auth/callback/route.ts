@@ -39,14 +39,6 @@ export async function GET(request: NextRequest) {
     if (!user) {
       // If a role was specified (from registration), create the user
       if (requestUrl.searchParams.has('role')) {
-        const { error: insertError } = await supabase.from("users").insert({
-          id: data.user.id,
-          email: data.user.email,
-          name: data.user.user_metadata.full_name || data.user.user_metadata.name || "",
-          role: userRole,
-          avatar_url: data.user.user_metadata.avatar_url || null,
-        })
-
         const { data: newUser, error: insertError } = await supabase
           .from("users")
           .insert({
@@ -70,6 +62,9 @@ export async function GET(request: NextRequest) {
         return NextResponse.redirect(new URL(`/select-role?session=${encodeURIComponent(code)}`, request.url))
       }
     }
+
+    // Successful authentication, redirect to dashboard
+    return NextResponse.redirect(new URL("/dashboard", request.url))
   } catch (error) {
     console.error("Auth callback error:", error)
     return NextResponse.redirect(new URL("/?error=callback_failed", request.url))

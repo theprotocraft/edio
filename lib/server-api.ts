@@ -41,12 +41,9 @@ export async function fetchDashboardData() {
     }
 
     // Fetch projects where user is an editor
-    const { data: editedProjects, error: editedError } = await supabase
+    const { data: editorProjects, error: editorError } = await supabase
       .from("youtuber_editors")
       .select(`
-        id,
-        project_id,
-        editor_id,
         project:projects(
           *,
           owner:users!projects_owner_id_fkey(id, name, email),
@@ -54,16 +51,32 @@ export async function fetchDashboardData() {
         )
       `)
       .eq("editor_id", user.id)
-      .eq("status", "active")
       
-    if (editedError) {
-      console.error("Error fetching edited projects:", editedError)
+    if (editorError) {
+      console.error("Error fetching editor projects:", editorError)
+    }
+
+    // If user is an editor on any projects, fetch those project details
+    let editedProjectsList = []
+    if (editorProjects && editorProjects.length > 0) {
+      const projectIds = editorProjects.map((ep: { project_id: string }) => ep.project_id)
+      
+      const { data: projects, error } = await supabase
+        .from("projects")
+        .select("*")
+        .in("id", projectIds)
+      
+      if (error) {
+        console.error("Error fetching editor project details:", error)
+      } else {
+        editedProjectsList = projects || []
+      }
     }
 
     // Combine projects
     const projects = [
       ...(ownedProjects || []),
-      ...(editedProjects?.map((item: { project: any }) => item.project) || [])
+      ...editedProjectsList
     ].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
       .slice(0, 4);
 
@@ -139,7 +152,7 @@ export async function fetchProjects() {
     }
 
     // Fetch projects where user is an editor
-    const { data: editedProjects, error: editedError } = await supabase
+    const { data: editorProjects, error: editorError } = await supabase
       .from("youtuber_editors")
       .select(`
         project:projects(
@@ -155,7 +168,7 @@ export async function fetchProjects() {
     }
 
     // If user is an editor on any projects, fetch those project details
-    let editedProjects = []
+    let editedProjectsList = []
     if (editorProjects && editorProjects.length > 0) {
       const projectIds = editorProjects.map((ep: { project_id: string }) => ep.project_id)
       
@@ -167,14 +180,14 @@ export async function fetchProjects() {
       if (error) {
         console.error("Error fetching editor project details:", error)
       } else {
-        editedProjects = projects || []
+        editedProjectsList = projects || []
       }
     }
 
     // Combine projects
     const projects = [
       ...(ownedProjects || []),
-      ...editedProjects
+      ...editedProjectsList
     ].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
 
     const isCreator = userData?.role === "youtuber"
