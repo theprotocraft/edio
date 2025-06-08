@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { createClient } from "@/lib/supabase-server"
+import { createServerClient } from "@/lib/supabase-server"
 import { generatePresignedUrl } from "@/lib/s3-service"
 
 export async function POST(
@@ -41,7 +41,7 @@ export async function POST(
       )
     }
 
-    const supabase = createClient()
+    const supabase = await createServerClient()
 
     // Get the current user
     const { data: { user }, error: userError } = await supabase.auth.getUser()

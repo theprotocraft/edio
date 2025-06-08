@@ -105,19 +105,6 @@ CREATE TABLE notifications (
   metadata JSONB DEFAULT '{}'
 );
 
--- Link project_editors.project_id → projects.id
-ALTER TABLE project_editors
-  ADD CONSTRAINT project_editors_project_id_fkey
-  FOREIGN KEY (project_id)
-  REFERENCES projects(id)
-  ON DELETE CASCADE;
-
--- Link project_editors.editor_id → users.id
-ALTER TABLE project_editors
-  ADD CONSTRAINT project_editors_editor_id_fkey
-  FOREIGN KEY (editor_id)
-  REFERENCES users(id)
-  ON DELETE CASCADE;
 
 -- Enable Row Level Security
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;

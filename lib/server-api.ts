@@ -27,11 +27,7 @@ export async function fetchDashboardData() {
     // Fetch owned projects
     const { data: ownedProjects, error: ownedError } = await supabase
       .from("projects")
-      .select(`
-        *,
-        owner:users!projects_owner_id_fkey(id, name, email),
-        editors:youtuber_editors(editor_id, editor:users(id, name, email))
-      `)
+      .select("*")
       .eq("owner_id", user.id)
       .order("updated_at", { ascending: false })
       .limit(4)
@@ -246,13 +242,13 @@ export async function fetchProjectDetails(id: string) {
     
     // Step 3: Get editors data
     const { data: editors, error: editorsError } = await supabase
-      .from("project_editors")
+      .from("youtuber_editors")
       .select(`
         id,
         editor_id,
         editor:users(id, name, email)
       `)
-      .eq("project_id", id)
+      .eq("youtuber_id", basicProject.owner_id)
       
     if (editorsError) {
       console.error("Error fetching editors:", editorsError)
