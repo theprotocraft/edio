@@ -121,7 +121,7 @@ export default async function DashboardPage() {
               ) : (
                 <div className="flex flex-col items-center justify-center h-40 text-center">
                   <p className="text-gray-500 dark:text-gray-400 mb-4">No projects yet</p>
-                  <Link href="/projects/new">
+                  <Link href="/dashboard/projects/new">
                     <Button>
                       <Plus className="mr-2 h-4 w-4" /> Create Project
                     </Button>

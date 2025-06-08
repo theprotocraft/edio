@@ -24,77 +24,117 @@ export async function fetchProject(id: string) {
 }
 
 export async function createProject({ 
-  title, 
+  projectTitle, 
   videoTitle, 
   description,
   hashtags,
-  editorId
+  file,
+  onProgress
 }: { 
-  title: string; 
+  projectTitle: string; 
   videoTitle?: string;
   description?: string;
   hashtags?: string;
-  editorId?: string;
-}) {
-  const supabase = createClient()
-
-  // Get user profile to determine if creator or editor
-  const { data: userData, error: userError } = await supabase
-    .from("users")
-    .select("role")
-    .eq("id", (await supabase.auth.getUser()).data.user?.id || "")
-    .single()
-
-  if (userError) {
-    throw new Error("Failed to fetch user data")
-  }
-
-  if (!userData) {
-    throw new Error("User profile not found")
-  }
-
-  // Create the project
-  const { data, error } = await supabase
-    .from("projects")
-    .insert({
-      project_title: title,
-      video_title: videoTitle,
-      description,
-      hashtags,
-      owner_id: userData.role === "youtuber" ? (await supabase.auth.getUser()).data.user?.id : null,
-      status: "pending",
-    })
-    .select()
-
-  if (error) {
-    throw error
-  }
-
-  // If user is an editor, add them as a project editor
-  if (userData.role === "editor" && data && data[0]) {
-    const { error: editorError } = await supabase.from("project_editors").insert({
-      project_id: data[0].id,
-      editor_id: (await supabase.auth.getUser()).data.user?.id,
+  file: File;
+  onProgress?: (progress: number) => void;
+}): Promise<string> {
+  try {
+    // Step 1: Get a presigned URL for the video upload
+    const presignResponse = await fetch("/api/uploads/initial", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        fileName: file.name,
+        contentType: file.type,
+        fileSize: file.size,
+        fileType: "video",
+      }),
     })
 
-    if (editorError) {
-      console.error("Failed to add editor to project:", editorError)
+    if (!presignResponse.ok) {
+      const errorData = await presignResponse.json()
+      throw new Error(errorData.error || "Failed to get upload URL")
     }
-  }
-  
-  // If an editor was selected and user is a creator
-  if (editorId && userData.role === "youtuber" && data && data[0]) {
-    const { error: editorError } = await supabase.from("project_editors").insert({
-      project_id: data[0].id,
-      editor_id: editorId,
+
+    const { uploadUrl, fileUrl } = await presignResponse.json()
+
+    // Step 2: Upload the file to S3 with progress tracking
+    await uploadFileWithProgress(uploadUrl, file, onProgress)
+
+    // Step 3: Create the project record
+    const projectResponse = await fetch("/api/projects", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        projectTitle,
+        videoTitle,
+        description,
+        hashtags,
+        fileUrl,
+        fileName: file.name,
+        fileSize: file.size,
+      }),
     })
 
-    if (editorError) {
-      console.error("Failed to add selected editor to project:", editorError)
+    if (!projectResponse.ok) {
+      const errorData = await projectResponse.json()
+      throw new Error(errorData.error || "Failed to create project")
     }
-  }
 
-  return data[0].id
+    const { projectId } = await projectResponse.json()
+    return projectId
+  } catch (error: any) {
+    console.error("Error creating project:", error)
+    throw new Error(error.message || "Failed to create project")
+  }
+}
+
+// Helper function to upload file with progress tracking
+async function uploadFileWithProgress(
+  presignedUrl: string,
+  file: File,
+  onProgress?: (progress: number) => void
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest()
+
+    // Track upload progress
+    if (onProgress) {
+      xhr.upload.addEventListener("progress", (event) => {
+        if (event.lengthComputable) {
+          const percentComplete = (event.loaded / event.total) * 100
+          onProgress(percentComplete)
+        }
+      })
+    }
+
+    // Handle success
+    xhr.addEventListener("load", () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve()
+      } else {
+        reject(new Error(`Upload failed with status ${xhr.status}`))
+      }
+    })
+
+    // Handle errors
+    xhr.addEventListener("error", () => {
+      reject(new Error("Upload failed due to network error"))
+    })
+
+    xhr.addEventListener("abort", () => {
+      reject(new Error("Upload aborted"))
+    })
+
+    // Open and send the request
+    xhr.open("PUT", presignedUrl)
+    xhr.setRequestHeader("Content-Type", file.type)
+    xhr.send(file)
+  })
 }
 
 export async function updateProject(id: string, { 
@@ -207,39 +247,6 @@ export async function uploadFile({
   if (error) {
     throw error
   }
-}
-
-async function uploadFileWithProgress(url: string, file: File, onProgress: (progress: number) => void): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest()
-
-    xhr.upload.addEventListener("progress", (event) => {
-      if (event.lengthComputable) {
-        const percentComplete = Math.round((event.loaded / event.total) * 100)
-        onProgress(percentComplete)
-      }
-    })
-
-    xhr.addEventListener("load", () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        resolve()
-      } else {
-        reject(new Error(`Upload failed with status ${xhr.status}`))
-      }
-    })
-
-    xhr.addEventListener("error", () => {
-      reject(new Error("Upload failed due to network error"))
-    })
-
-    xhr.addEventListener("abort", () => {
-      reject(new Error("Upload aborted"))
-    })
-
-    xhr.open("PUT", url)
-    xhr.setRequestHeader("Content-Type", file.type)
-    xhr.send(file)
-  })
 }
 
 export async function deleteFile(fileId: string) {

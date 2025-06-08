@@ -11,7 +11,7 @@ interface ProjectPageProps {
 
 export default async function ProjectPage({ params }: ProjectPageProps) {
   try {
-    const { id } = params
+    const { id } = await params
     const result = await fetchProjectDetails(id)
     
     if (!result.project) {
