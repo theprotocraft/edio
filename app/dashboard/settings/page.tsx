@@ -14,5 +14,11 @@ export default async function SettingsPage() {
     .eq("id", user?.id)
     .single()
 
-  return <SettingsClient userData={userData} />
+  const { data: youtubeChannels } = await supabase
+    .from("youtube_channels")
+    .select("*")
+    .eq("user_id", user?.id)
+    .order("created_at", { ascending: false })
+
+  return <SettingsClient userData={userData} youtubeChannels={youtubeChannels || []} />
 } 
