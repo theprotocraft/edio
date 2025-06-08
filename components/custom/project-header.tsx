@@ -206,8 +206,9 @@ export function ProjectHeader({ project, userRole }: ProjectHeaderProps) {
     }
   }
 
-  // Check if there are editors assigned to the project
-  const hasAssignedEditors = project.editors && project.editors.length > 0
+  // Check if there is an editor assigned to the project
+  console.log(project)
+  const hasAssignedEditor = project.editor !== null
 
   return (
     <div className="mb-6">
@@ -237,7 +238,7 @@ export function ProjectHeader({ project, userRole }: ProjectHeaderProps) {
         <div className="flex items-center space-x-2">
           {userRole === "creator" && project.status !== "approved" && (
             <>
-              {!hasAssignedEditors && (
+              {!hasAssignedEditor && (
                 <Dialog open={assignDialogOpen} onOpenChange={setAssignDialogOpen}>
                   <DialogTrigger asChild>
                     <Button variant="outline" className="rounded-2xl">
@@ -358,17 +359,13 @@ export function ProjectHeader({ project, userRole }: ProjectHeaderProps) {
         </div>
 
         <div className="flex items-center space-x-2">
-          <span className="text-sm font-medium">Editors:</span>
-          {hasAssignedEditors ? (
+          <span className="text-sm font-medium">Editor:</span>
+          {hasAssignedEditor ? (
             <div className="flex items-center space-x-2">
-              {project.editors.map((pe: any) => (
-                <div key={pe.id} className="flex items-center space-x-1">
-                  <Avatar className="h-6 w-6">
-                    <AvatarFallback>{getInitials(pe.editor?.name || "E")}</AvatarFallback>
-                  </Avatar>
-                  <span>{pe.editor?.name || "Unknown"}</span>
-                </div>
-              ))}
+              <Avatar className="h-6 w-6">
+                <AvatarFallback>{getInitials(project.editor?.name || "E")}</AvatarFallback>
+              </Avatar>
+              <span>{project.editor?.name || project.editor?.email || "Unknown"}</span>
             </div>
           ) : userRole === "creator" ? (
             <div className="flex items-center">

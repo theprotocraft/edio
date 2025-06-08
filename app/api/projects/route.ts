@@ -149,7 +149,8 @@ export async function POST(request: Request) {
         description: description || null,
         // hashtags: hashtags || null,
         owner_id: user.id,
-        status: "pending"
+        status: "pending",
+        editor_id: editorId || null
       })
       .select()
       .single()
@@ -157,6 +158,19 @@ export async function POST(request: Request) {
     if (projectError || !project) {
       console.error("Error creating project:", projectError)
       return NextResponse.json({ error: "Failed to create project" }, { status: 500 })
+    }
+
+    // If an editor was assigned, create the project_editors record
+    if (editorId) {
+      const { error: editorError } = await supabase.rpc('add_project_editor', {
+        p_project_id: project.id,
+        p_editor_id: editorId
+      })
+
+      if (editorError) {
+        console.error("Error assigning editor:", editorError)
+        // Don't fail the request, just log the error
+      }
     }
     
     // Create upload record
@@ -244,8 +258,8 @@ export async function POST(request: Request) {
     }
     
     return NextResponse.json({ projectId: project.id })
-  } catch (error) {
-    console.error("Error in project creation API:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+  } catch (error: any) {
+    console.error("Error in POST /api/projects:", error)
+    return NextResponse.json({ error: error.message || "Internal server error" }, { status: 500 })
   }
 } 
