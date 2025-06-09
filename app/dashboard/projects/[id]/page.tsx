@@ -6,6 +6,7 @@ import { ProjectTabs } from "@/components/custom/project-tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
 import { useEffect, useState, use } from "react"
+import { createClient } from "@/app/lib/supabase-client"
 
 interface Editor {
   id: string
@@ -78,11 +79,25 @@ export default function ProjectPage({ params }: ProjectPageProps) {
   const resolvedParams = use(params)
   const [data, setData] = useState<any>(null)
   const [error, setError] = useState<string | null>(null)
+  const [userRole, setUserRole] = useState<"youtuber" | "editor" | null>(null)
   const { toast } = useToast()
+  const supabase = createClient()
 
   useEffect(() => {
     const fetchData = async () => {
       try {
+        // Get current user's role
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+          const { data: userData } = await supabase
+            .from("users")
+            .select("role")
+            .eq("id", user.id)
+            .single()
+          setUserRole(userData?.role || null)
+        }
+
+        // Get project data
         const response = await fetch(`/api/projects/${resolvedParams.id}`)
         if (!response.ok) {
           const data = await response.json()
@@ -102,29 +117,29 @@ export default function ProjectPage({ params }: ProjectPageProps) {
     }
 
     fetchData()
-  }, [resolvedParams.id, toast])
+  }, [resolvedParams.id, toast, supabase])
 
   if (error) {
     notFound()
   }
 
-  if (!data) {
+  if (!data || !userRole) {
     return <div>Loading...</div>
   }
 
   return (
     <div>
-      <ProjectHeader project={data} userRole={data.userRole} />
+      <ProjectHeader project={data} userRole={userRole} />
       <ProjectTabs
         project={data}
         uploads={data.uploads || []}
         versions={data.versions || []}
         messages={data.messages || []}
-        userRole={data.userRole}
+        userRole={userRole}
         userId={data.userId}
       />
       
-      {data.userRole === "creator" && data.activeEditors && data.activeEditors.length > 0 && (
+      {userRole === "youtuber" && data.activeEditors && data.activeEditors.length > 0 && (
         <EditorSelect 
           projectId={resolvedParams.id}
           activeEditors={data.activeEditors}

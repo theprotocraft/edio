@@ -23,7 +23,7 @@ import { useRouter } from "next/navigation"
 interface VideoVersionsProps {
   project: any
   versions: any[]
-  userRole: "creator" | "editor"
+  userRole: "youtuber" | "editor"
 }
 
 interface Version {

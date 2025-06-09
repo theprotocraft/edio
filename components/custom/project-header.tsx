@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
-import { Clock, MoreHorizontal, Trash, CheckCircle, UserPlus, Loader2 } from "lucide-react"
+import { Clock, MoreHorizontal, Trash, CheckCircle, UserPlus, Loader2, Youtube } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { useSupabase } from "@/hooks/useUser"
 import {
@@ -46,7 +46,7 @@ import {
 
 interface ProjectHeaderProps {
   project: any
-  userRole: "creator" | "editor"
+  userRole: "youtuber" | "editor"
 }
 
 interface Editor {
@@ -54,6 +54,12 @@ interface Editor {
   name: string
   email: string
   avatar_url?: string
+}
+
+interface YouTubeChannel {
+  id: string
+  title: string
+  thumbnailUrl: string
 }
 
 export function ProjectHeader({ project, userRole }: ProjectHeaderProps) {
@@ -65,6 +71,9 @@ export function ProjectHeader({ project, userRole }: ProjectHeaderProps) {
   const [editors, setEditors] = useState<Editor[]>([])
   const [selectedEditorId, setSelectedEditorId] = useState<string>("")
   const [assigningEditor, setAssigningEditor] = useState(false)
+  const [channels, setChannels] = useState<YouTubeChannel[]>([])
+  const [loadingChannels, setLoadingChannels] = useState(false)
+  const [publishing, setPublishing] = useState(false)
   const { supabase } = useSupabase()
   const router = useRouter()
   const { toast } = useToast()
@@ -92,6 +101,42 @@ export function ProjectHeader({ project, userRole }: ProjectHeaderProps) {
       getEditors()
     }
   }, [assignDialogOpen, toast])
+
+  // Fetch YouTube channels on component mount
+  useEffect(() => {
+    const fetchChannels = async () => {
+      setLoadingChannels(true)
+      try {
+        const response = await fetch('/api/youtube/channels')
+        if (!response.ok) {
+          throw new Error('Failed to fetch YouTube channels')
+        }
+        const data = await response.json()
+        console.log('YouTube channels:', data.channels)
+        setChannels(data.channels)
+      } catch (error) {
+        console.error('Error fetching YouTube channels:', error)
+        toast({
+          title: "Error",
+          description: "Failed to load YouTube channels",
+          variant: "destructive",
+        })
+      } finally {
+        setLoadingChannels(false)
+      }
+    }
+
+    fetchChannels()
+  }, [toast])
+
+  // Add debug logging for project data
+  useEffect(() => {
+    console.log('Project data:', project)
+    console.log('YouTube channel ID:', project.youtube_channel_id)
+    console.log('User role:', userRole)
+    console.log('Owner role:', project.owner?.role)
+    console.log('Available channels:', channels)
+  }, [project, userRole, channels])
 
   const handleDeleteProject = async () => {
     setLoading(true)
@@ -177,6 +222,44 @@ export function ProjectHeader({ project, userRole }: ProjectHeaderProps) {
     }
   }
 
+  const handlePublish = async () => {
+    if (!project.youtube_channel_id) {
+      toast({
+        title: "No channel selected",
+        description: "Please select a YouTube channel before publishing.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setPublishing(true)
+    try {
+      const response = await fetch(`/api/projects/${project.id}/publish`, {
+        method: 'POST',
+      })
+
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || 'Failed to publish video')
+      }
+
+      toast({
+        title: "Video published",
+        description: "Your video has been published to YouTube successfully.",
+      })
+
+      router.refresh()
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to publish video",
+        variant: "destructive",
+      })
+    } finally {
+      setPublishing(false)
+    }
+  }
+
   const getStatusBadge = () => {
     switch (project.status) {
       case "approved":
@@ -236,7 +319,7 @@ export function ProjectHeader({ project, userRole }: ProjectHeaderProps) {
         </div>
 
         <div className="flex items-center space-x-2">
-          {userRole === "creator" && project.status !== "approved" && (
+          {userRole === "youtuber" && project.status !== "approved" && (
             <>
               {!hasAssignedEditor && (
                 <Dialog open={assignDialogOpen} onOpenChange={setAssignDialogOpen}>
@@ -367,7 +450,7 @@ export function ProjectHeader({ project, userRole }: ProjectHeaderProps) {
               </Avatar>
               <span>{project.editor?.name || project.editor?.email || "Unknown"}</span>
             </div>
-          ) : userRole === "creator" ? (
+          ) : userRole === "youtuber" ? (
             <div className="flex items-center">
               <span className="text-muted-foreground">Unassigned</span>
             </div>
@@ -375,6 +458,26 @@ export function ProjectHeader({ project, userRole }: ProjectHeaderProps) {
             <span className="text-muted-foreground">Unassigned</span>
           )}
         </div>
+
+        {userRole === "youtuber" && project.status === "approved" && (
+          <Button
+            onClick={handlePublish}
+            disabled={publishing || !project.youtube_channel_id}
+            className="bg-red-600 hover:bg-red-700 text-white"
+          >
+            {publishing ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Publishing...
+              </>
+            ) : (
+              <>
+                <Youtube className="mr-2 h-4 w-4" />
+                Publish to YouTube
+              </>
+            )}
+          </Button>
+        )}
       </div>
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

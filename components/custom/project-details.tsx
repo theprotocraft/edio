@@ -18,17 +18,25 @@ import { Label } from "@/components/ui/label"
 import { ImageIcon, Upload } from "lucide-react"
 import { formatFileSize } from "@/lib/utils"
 import Image from "next/image"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 interface ProjectDetailsProps {
   project: any
-  userRole: "creator" | "editor"
+  userRole: "youtuber" | "editor"
   uploads?: any[]
 }
 
+interface YouTubeChannel {
+  id: string
+  channel_name: string
+  channel_thumbnail: string
+}
+
 const projectDetailsSchema = z.object({
-  videoTitle: z.string().min(1, "Video title is required"),
-  description: z.string().min(1, "Video description is required"),
+  videoTitle: z.string().optional(),
+  description: z.string().optional(),
   hashtags: z.string().optional(),
+  youtubeChannel: z.string().optional(),
 })
 
 type ProjectDetailsFormValues = z.infer<typeof projectDetailsSchema>
@@ -39,9 +47,11 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
   const [uploadingThumbnail, setUploadingThumbnail] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null)
-  const { supabase, user } = useSupabase()
+  const [channels, setChannels] = useState<YouTubeChannel[]>([])
+  const [loadingChannels, setLoadingChannels] = useState(false)
   const router = useRouter()
   const { toast } = useToast()
+  const { user } = useSupabase()
 
   // Find thumbnail from uploads (if any)
   const thumbnailUpload = uploads.find(upload => upload.file_type === "thumbnail");
@@ -64,12 +74,41 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
     }
   }, [thumbnailUpload]);
 
+  // Fetch YouTube channels on component mount
+  useEffect(() => {
+    const fetchChannels = async () => {
+      setLoadingChannels(true)
+      try {
+        const response = await fetch('/api/youtube/channels')
+        if (!response.ok) {
+          throw new Error('Failed to fetch YouTube channels')
+        }
+        const data = await response.json()
+        setChannels(data.channels)
+      } catch (error) {
+        console.error('Error fetching YouTube channels:', error)
+        toast({
+          title: "Error",
+          description: "Failed to load YouTube channels",
+          variant: "destructive",
+        })
+      } finally {
+        setLoadingChannels(false)
+      }
+    }
+
+    if (userRole === "youtuber") {
+      fetchChannels()
+    }
+  }, [userRole, toast])
+
   const form = useForm<ProjectDetailsFormValues>({
     resolver: zodResolver(projectDetailsSchema),
     defaultValues: {
       videoTitle: project.video_title || "",
       description: project.description || "",
       hashtags: project.hashtags || "",
+      youtubeChannel: project.youtube_channel_id || "",
     },
   })
 
@@ -152,6 +191,7 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
         videoTitle: data.videoTitle,
         description: data.description,
         hashtags: data.hashtags,
+        youtube_channel_id: data.youtubeChannel,
       })
 
       toast({
@@ -159,7 +199,6 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
         description: "Your project details have been updated successfully.",
       })
 
-      // Refresh the page to show the updated details
       router.refresh()
     } catch (error: any) {
       toast({
@@ -208,6 +247,44 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
                   </FormItem>
                 )}
               />
+
+              {userRole === "youtuber" && (
+                <FormField
+                  control={form.control}
+                  name="youtubeChannel"
+                  render={({ field }) => (
+                    <FormItem className="space-y-2">
+                      <FormLabel>YouTube Channel</FormLabel>
+                      <Select
+                        value={field.value}
+                        onValueChange={field.onChange}
+                        disabled={loadingChannels}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select YouTube channel" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {channels.map((channel) => (
+                            <SelectItem key={channel.id} value={channel.id}>
+                              <div className="flex items-center">
+                                <img
+                                  src={channel.channel_thumbnail}
+                                  alt={channel.channel_name}
+                                  className="w-6 h-6 rounded-full mr-2"
+                                />
+                                <span>{channel.channel_name}</span>
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
 
               {/* Thumbnail Upload Section */}
               <div className="space-y-4 border p-4 rounded-lg">

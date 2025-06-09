@@ -145,6 +145,7 @@ export async function updateProject(id: string, {
   videoTitle, 
   description,
   hashtags,
+  youtube_channel_id,
   finalVersionNumber
 }: { 
   title?: string; 
@@ -152,6 +153,7 @@ export async function updateProject(id: string, {
   description?: string;
   hashtags?: string;
   finalVersionNumber?: number;
+  youtube_channel_id?: string;
 }) {
   const supabase = createClient()
 

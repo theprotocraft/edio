@@ -56,7 +56,8 @@ export async function GET(
       ...project,
       client: project.client,
       editor: project.editor,
-      activeEditors: project.project_editors.map((pe: any) => pe.editor)
+      activeEditors: project.project_editors.map((pe: any) => pe.editor),
+      youtube_channel_id: project.youtube_channel_id
     }
 
     return NextResponse.json(transformedProject)
