@@ -437,6 +437,74 @@ export async function generateInitialUploadUrl(request: InitialUploadRequest): P
 }
 
 /**
+ * Generate a pre-signed URL for video version uploads with custom S3 key
+ * This is used for video version uploads with versioned naming
+ */
+export async function generateVersionUploadUrl(request: {
+  key: string;
+  contentType: string;
+}): Promise<PresignedUrlResponse> {
+  try {
+    // Validate environment variables
+    const bucketName = process.env.AWS_S3_BUCKET_NAME
+    const region = process.env.AWS_REGION
+    const accessKeyId = process.env.AWS_ACCESS_KEY_ID
+    const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY
+
+    if (!bucketName || !region || !accessKeyId || !secretAccessKey) {
+      console.error("Missing AWS environment variables")
+      return {
+        uploadUrl: "",
+        fileUrl: "",
+        error: "Server configuration error: Missing AWS credentials",
+      }
+    }
+
+    // Validate request
+    const { key, contentType } = request
+
+    if (!key || !contentType) {
+      return {
+        uploadUrl: "",
+        fileUrl: "",
+        error: "Missing required fields",
+      }
+    }
+
+    // Initialize S3 client
+    const s3Client = new S3Client({
+      region,
+      credentials: {
+        accessKeyId,
+        secretAccessKey,
+      },
+    })
+
+    // Create command for S3 PUT operation
+    const command = new PutObjectCommand({
+      Bucket: bucketName,
+      Key: key,
+      ContentType: contentType,
+    })
+
+    // Generate presigned URL
+    const uploadUrl = await getSignedUrl(s3Client, command, { expiresIn: 3600 }) // 1 hour expiry
+
+    // Generate the public URL for the file
+    const fileUrl = `https://${bucketName}.s3.${region}.amazonaws.com/${key}`
+
+    return { uploadUrl, fileUrl }
+  } catch (error: any) {
+    console.error("Error generating version upload URL:", error)
+    return {
+      uploadUrl: "",
+      fileUrl: "",
+      error: error.message || "Failed to generate upload URL",
+    }
+  }
+}
+
+/**
  * API Route handler for initial uploads
  */
 export async function apiGenerateInitialUploadUrl(req: Request): Promise<Response> {

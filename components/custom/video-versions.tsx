@@ -1,26 +1,11 @@
 "use client"
 
-import type React from "react"
-
 import { useState } from "react"
-import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
-import { Card, CardContent } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 import { useToast } from "@/hooks/use-toast"
-import { Plus, Video, CheckCircle, MessageSquare, Trash } from "lucide-react"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
+import { Video } from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -29,7 +14,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { addVideoVersion, deleteVideoVersion, approveVersion, sendFeedback } from "@/lib/api"
+import { VersionCard } from "@/components/custom/version-card"
+import { VersionPreviewDialog } from "@/components/custom/version-preview-dialog"
+import { VersionUpload } from "@/components/custom/version-upload"
+import { sendFeedback } from "@/lib/api"
+import { useRouter } from "next/navigation"
 
 interface VideoVersionsProps {
   project: any
@@ -37,121 +26,46 @@ interface VideoVersionsProps {
   userRole: "creator" | "editor"
 }
 
+interface Version {
+  id: string
+  version_number: number
+  file_url: string
+  notes?: string
+  created_at: string
+  uploader_id: string
+  uploader?: {
+    name?: string
+  }
+}
+
 export function VideoVersions({ project, versions, userRole }: VideoVersionsProps) {
-  const [videoUrl, setVideoUrl] = useState("")
-  const [notes, setNotes] = useState("")
-  const [loading, setLoading] = useState(false)
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-  const [versionToDelete, setVersionToDelete] = useState<string | null>(null)
-  const [approveDialogOpen, setApproveDialogOpen] = useState(false)
-  const [versionToApprove, setVersionToApprove] = useState<string | null>(null)
+  const [selectedVersion, setSelectedVersion] = useState<Version | null>(null)
+  const [previewDialogOpen, setPreviewDialogOpen] = useState(false)
   const [feedbackDialogOpen, setFeedbackDialogOpen] = useState(false)
-  const [selectedVersion, setSelectedVersion] = useState<any>(null)
   const [feedback, setFeedback] = useState("")
-  const router = useRouter()
+  const [submittingFeedback, setSubmittingFeedback] = useState(false)
   const { toast } = useToast()
+  const router = useRouter()
 
-  const handleAddVersion = async (e: React.FormEvent) => {
-    e.preventDefault()
-
-    if (!videoUrl) {
-      toast({
-        title: "Missing information",
-        description: "Please provide a video URL.",
-        variant: "destructive",
-      })
-      return
-    }
-
-    setLoading(true)
-
-    try {
-      await addVideoVersion({
-        projectId: project.id,
-        videoUrl,
-        notes,
-      })
-
-      toast({
-        title: "Version added",
-        description: "Your video version has been added successfully.",
-      })
-
-      // Reset form
-      setVideoUrl("")
-      setNotes("")
-
-      // Refresh the page
-      router.refresh()
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to add version.",
-        variant: "destructive",
-      })
-    } finally {
-      setLoading(false)
-    }
+  const handlePreview = (version: Version) => {
+    setSelectedVersion(version)
+    setPreviewDialogOpen(true)
   }
 
-  const handleDeleteVersion = async () => {
-    if (!versionToDelete) return
-
-    try {
-      await deleteVideoVersion(versionToDelete)
-
-      toast({
-        title: "Version deleted",
-        description: "The video version has been deleted successfully.",
-      })
-
-      // Refresh the page
-      router.refresh()
-    } catch (error: any) {
-      toast({
-        title: "Delete failed",
-        description: error.message || "Failed to delete version.",
-        variant: "destructive",
-      })
-    } finally {
-      setVersionToDelete(null)
-      setDeleteDialogOpen(false)
-    }
-  }
-
-  const handleApproveVersion = async () => {
-    if (!versionToApprove) return
-
-    try {
-      await approveVersion(project.id)
-
-      toast({
-        title: "Version approved",
-        description: "The video version has been approved and the project marked as completed.",
-      })
-
-      // Refresh the page
-      router.refresh()
-    } catch (error: any) {
-      toast({
-        title: "Approval failed",
-        description: error.message || "Failed to approve version.",
-        variant: "destructive",
-      })
-    } finally {
-      setVersionToApprove(null)
-      setApproveDialogOpen(false)
-    }
+  const handleFeedback = (version: Version) => {
+    setSelectedVersion(version)
+    setFeedbackDialogOpen(true)
   }
 
   const handleSubmitFeedback = async () => {
-    if (!selectedVersion || !feedback) return
+    if (!selectedVersion || !feedback.trim()) return
 
+    setSubmittingFeedback(true)
     try {
       await sendFeedback({
         projectId: project.id,
         versionId: selectedVersion.id,
-        feedback,
+        feedback: feedback.trim(),
       })
 
       toast({
@@ -159,11 +73,8 @@ export function VideoVersions({ project, versions, userRole }: VideoVersionsProp
         description: "Your feedback has been sent successfully.",
       })
 
-      // Reset form and close dialog
       setFeedback("")
       setFeedbackDialogOpen(false)
-
-      // Refresh the page
       router.refresh()
     } catch (error: any) {
       toast({
@@ -171,196 +82,63 @@ export function VideoVersions({ project, versions, userRole }: VideoVersionsProp
         description: error.message || "Failed to send feedback.",
         variant: "destructive",
       })
+    } finally {
+      setSubmittingFeedback(false)
     }
   }
 
+  // Sort versions by version number, descending (newest first)
+  const sortedVersions = [...versions].sort((a, b) => b.version_number - a.version_number)
+
   return (
     <div className="space-y-6">
-      {userRole === "editor" && (
-        <Card className="shadow-md">
-          <CardContent className="pt-6">
-            <form onSubmit={handleAddVersion} className="space-y-4">
-              <h3 className="text-lg font-medium mb-4">Add New Version</h3>
-              <div className="space-y-2">
-                <Label htmlFor="videoUrl">Video URL</Label>
-                <Input
-                  id="videoUrl"
-                  placeholder="https://example.com/video.mp4"
-                  value={videoUrl}
-                  onChange={(e) => setVideoUrl(e.target.value)}
-                  required
-                />
-                <p className="text-xs text-muted-foreground">
-                  Paste a link to your video (YouTube, Vimeo, or direct file URL)
-                </p>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="notes">Notes (Optional)</Label>
-                <Textarea
-                  id="notes"
-                  placeholder="Add notes about this version"
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  rows={3}
-                />
-              </div>
-              <Button
-                type="submit"
-                disabled={loading}
-                className="rounded-2xl shadow-md transition-transform active:scale-[0.98]"
-              >
-                {loading ? "Adding..." : "Add Version"}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
-      )}
+      {/* Upload New Version */}
+      <VersionUpload 
+        projectId={project.id} 
+        userRole={userRole}
+        disabled={project.status === "approved"}
+      />
 
-      <h3 className="text-xl font-medium mt-8 mb-4">Video Versions</h3>
+      {/* Versions List */}
+      <div className="space-y-4">
+        <h3 className="text-xl font-medium">Video Versions</h3>
+        
+        {sortedVersions.length > 0 ? (
+          <div className="space-y-4">
+            {sortedVersions.map((version) => (
+              <VersionCard
+                key={version.id}
+                version={version}
+                project={project}
+                userRole={userRole}
+                onPreview={() => handlePreview(version)}
+                onFeedback={userRole === "creator" ? () => handleFeedback(version) : undefined}
+                uploaderName={version.uploader?.name}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center rounded-lg border border-dashed p-8 text-center">
+            <Video className="h-10 w-10 text-muted-foreground mb-4" />
+            <h3 className="text-lg font-medium">No video versions yet</h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              {userRole === "creator" 
+                ? "Your editor will upload the first version here." 
+                : "Upload your first video version to get started."
+              }
+            </p>
+          </div>
+        )}
+      </div>
 
-      {versions && versions.length > 0 ? (
-        <div className="space-y-4">
-          {versions.map((version) => (
-            <div key={version.id} className="rounded-lg border p-4 hover:bg-muted/50 transition-colors shadow-sm">
-              <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-2">
-                    <h4 className="font-medium">Version {version.version_number}</h4>
-                  </div>
+      {/* Preview Dialog */}
+      <VersionPreviewDialog
+        open={previewDialogOpen}
+        onOpenChange={setPreviewDialogOpen}
+        version={selectedVersion}
+      />
 
-                  <div className="aspect-video bg-muted rounded-md mb-4 overflow-hidden">
-                    {version.file_url && (
-                      <iframe
-                        src={
-                          version.file_url.includes("youtube.com")
-                            ? version.file_url.replace("watch?v=", "embed/")
-                            : version.file_url.includes("vimeo.com")
-                              ? version.file_url.replace("vimeo.com", "player.vimeo.com/video")
-                              : version.file_url
-                        }
-                        className="w-full h-full"
-                        allowFullScreen
-                        title={`Version ${version.version_number}`}
-                      />
-                    )}
-                  </div>
-
-                  {version.notes && (
-                    <div className="mb-4">
-                      <h5 className="text-sm font-medium mb-1">Notes:</h5>
-                      <p className="text-sm text-muted-foreground">{version.notes}</p>
-                    </div>
-                  )}
-
-                  <div className="flex items-center space-x-4 text-xs text-muted-foreground">
-                    <span>{version.uploader_id === project.owner_id ? "Added by Creator" : "Added by Editor"}</span>
-                    <span>{new Date(version.created_at).toLocaleDateString()}</span>
-                  </div>
-                </div>
-
-                <div className="flex flex-row md:flex-col gap-2">
-                  {userRole === "creator" && project.status === "in_review" && (
-                    <>
-                      <Button
-                        variant="default"
-                        size="sm"
-                        onClick={() => {
-                          setVersionToApprove(version.id)
-                          setApproveDialogOpen(true)
-                        }}
-                        className="rounded-2xl shadow-md transition-transform active:scale-[0.98]"
-                      >
-                        <CheckCircle className="mr-2 h-4 w-4" /> Approve
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setSelectedVersion(version)
-                          setFeedbackDialogOpen(true)
-                        }}
-                        className="rounded-2xl"
-                      >
-                        <MessageSquare className="mr-2 h-4 w-4" /> Feedback
-                      </Button>
-                    </>
-                  )}
-
-                  {((userRole === "creator" && version.uploader_id === project.owner_id) ||
-                    (userRole === "editor" && version.uploader_id !== project.owner_id)) && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
-                      onClick={() => {
-                        setVersionToDelete(version.id)
-                        setDeleteDialogOpen(true)
-                      }}
-                    >
-                      <Trash className="mr-2 h-4 w-4" /> Delete
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="flex flex-col items-center justify-center rounded-lg border border-dashed p-8 text-center">
-          <Video className="h-10 w-10 text-muted-foreground mb-4" />
-          <h3 className="text-lg font-medium">No video versions yet</h3>
-          {userRole === "editor" && (
-            <Button
-              onClick={() => document.getElementById("videoUrl")?.focus()}
-              className="rounded-2xl shadow-md transition-transform active:scale-[0.98]"
-            >
-              <Plus className="mr-2 h-4 w-4" /> Add First Version
-            </Button>
-          )}
-        </div>
-      )}
-
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete this video version.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDeleteVersion}
-              className="bg-red-600 hover:bg-red-700 dark:bg-red-600 dark:hover:bg-red-700"
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <AlertDialog open={approveDialogOpen} onOpenChange={setApproveDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Approve this version?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Approving this version will mark the project as completed. You can still access all project data, but it
-              will be moved to your completed projects list.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleApproveVersion}
-              className="rounded-2xl shadow-md transition-transform active:scale-[0.98]"
-            >
-              Approve
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
+      {/* Feedback Dialog */}
       <Dialog open={feedbackDialogOpen} onOpenChange={setFeedbackDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -387,10 +165,9 @@ export function VideoVersions({ project, versions, userRole }: VideoVersionsProp
             </Button>
             <Button
               onClick={handleSubmitFeedback}
-              disabled={!feedback}
-              className="rounded-2xl shadow-md transition-transform active:scale-[0.98]"
+              disabled={!feedback.trim() || submittingFeedback}
             >
-              Send Feedback
+              {submittingFeedback ? "Sending..." : "Send Feedback"}
             </Button>
           </DialogFooter>
         </DialogContent>

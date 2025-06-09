@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import type { Database } from "@/types/supabase"
 
-export default function SelectRolePage() {
+function SelectRolePageContent() {
   const [userRole, setUserRole] = useState("youtuber")
   const [loading, setLoading] = useState(true)
   const [checkingUser, setCheckingUser] = useState(true)
@@ -172,5 +172,20 @@ export default function SelectRolePage() {
         </Button>
       </CardContent>
     </Card>
+  )
+}
+
+export default function SelectRolePage() {
+  return (
+    <Suspense fallback={
+      <Card className="w-full max-w-md shadow-md">
+        <CardHeader className="space-y-1 text-center">
+          <CardTitle className="text-2xl font-bold tracking-tight">Loading...</CardTitle>
+          <CardDescription>Please wait...</CardDescription>
+        </CardHeader>
+      </Card>
+    }>
+      <SelectRolePageContent />
+    </Suspense>
   )
 } 
