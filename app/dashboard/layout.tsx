@@ -60,7 +60,7 @@ export default async function DashboardLayout({ children }: DashboardLayoutProps
   }
 
   return (
-    <div className="flex min-h-screen flex-col space-y-6">
+    <div className="flex min-h-screen flex-col">
       <header className="sticky top-0 z-40 border-b bg-background">
         <div className="container flex h-16 items-center justify-between py-4">
           <MainNav />
@@ -70,7 +70,7 @@ export default async function DashboardLayout({ children }: DashboardLayoutProps
           </div>
         </div>
       </header>
-      <div className="container grid flex-1 gap-12 md:grid-cols-[200px_1fr]">
+      <div className="container flex-1 grid gap-12 md:grid-cols-[200px_1fr] py-6">
         <aside className="hidden w-[200px] flex-col md:flex">
           <DashboardNav />
         </aside>

@@ -33,6 +33,7 @@ export type Database = {
           description: string | null
           thumbnail_url: string | null
           status: "pending" | "in_review" | "needs_changes" | "approved"
+          final_version_number: number | null
           created_at: string
           updated_at: string
         }
@@ -44,6 +45,7 @@ export type Database = {
           description?: string | null
           thumbnail_url?: string | null
           status?: "pending" | "in_review" | "needs_changes" | "approved"
+          final_version_number?: number | null
           created_at?: string
           updated_at?: string
         }
@@ -55,6 +57,7 @@ export type Database = {
           description?: string | null
           thumbnail_url?: string | null
           status?: "pending" | "in_review" | "needs_changes" | "approved"
+          final_version_number?: number | null
           created_at?: string
           updated_at?: string
         }
