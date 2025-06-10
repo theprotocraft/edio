@@ -40,30 +40,18 @@ export function ProjectCard({ project, isCreator, className }: ProjectCardProps)
   }
 
   return (
-    <Card className={cn("overflow-hidden", className)}>
-      <CardContent className="p-4">
-        <div className="flex justify-between items-start">
-          <h3 className="text-lg font-semibold line-clamp-1">{project.project_title}</h3>
+    <Card className={cn("overflow-hidden flex flex-col h-full", className)}>
+      <CardContent className="p-6 flex-1">
+        <div className="flex justify-between items-start mb-3">
+          <h3 className="text-lg font-semibold line-clamp-1 flex-1 mr-3">{project.project_title}</h3>
           {getStatusBadge(project.status)}
         </div>
-        <p className="text-sm text-muted-foreground mt-2 line-clamp-2">
+        <p className="text-sm text-muted-foreground line-clamp-2 min-h-[2.5rem]">
           {project.description || "No description provided"}
         </p>
-        <div className="mt-4">
-          <div className="flex items-center text-sm">
-            {/* <span className="font-medium mr-2">{isCreator ? "Editor:" : "Creator:"}</span>
-            <span className="text-muted-foreground">
-              {isCreator
-                ? project.editors && project.editors[0]?.editor?.name
-                  ? project.editors[0].editor.name
-                  : "Unassigned"
-                : project.owner?.name || "Unknown"}
-            </span> */}
-          </div>
-        </div>
       </CardContent>
-      <CardFooter className="p-4 pt-0 text-xs text-muted-foreground">
-        <div className="flex items-center">
+      <CardFooter className="p-6 pt-0 border-t border-border/50">
+        <div className="flex items-center text-xs text-muted-foreground">
           <Clock className="mr-1 h-3 w-3" />
           <span>Updated {new Date(project.updated_at).toLocaleDateString()}</span>
         </div>

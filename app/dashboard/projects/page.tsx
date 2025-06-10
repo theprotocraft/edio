@@ -12,7 +12,7 @@ export default async function ProjectsPage() {
     const { user, projects, isCreator } = await fetchProjects()
 
     return (
-      <div className="flex flex-col space-y-6">
+      <div className="flex flex-col space-y-6 w-full max-w-none">
         <div className="flex items-center justify-between">
           <h1 className="text-3xl font-bold tracking-tight">Projects</h1>
           <Link href="/dashboard/projects/new">
@@ -55,14 +55,14 @@ export default async function ProjectsPage() {
           </div>
         </div>
 
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 auto-rows-fr w-full">
           {projects && projects.length > 0 ? (
             projects.map((project) => (
-              <Link key={project.id} href={`/dashboard/projects/${project.id}`}>
+              <Link key={project.id} href={`/dashboard/projects/${project.id}`} className="block h-full">
                 <ProjectCard
                   project={project}
                   isCreator={isCreator}
-                  className="h-full hover:shadow-lg transition-all"
+                  className="hover:shadow-lg transition-all duration-200 hover:scale-[1.02]"
                 />
               </Link>
             ))
