@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import { useToast } from "@/hooks/use-toast"
 import { useRouter } from "next/navigation"
@@ -32,9 +32,14 @@ export function NotificationItem({ notification, onActionComplete }: Notificatio
   const [loading, setLoading] = useState(false)
   const [showConfirmDialog, setShowConfirmDialog] = useState(false)
   const [action, setAction] = useState<"accept" | "reject" | null>(null)
+  const [mounted, setMounted] = useState(false)
   const supabase = createClientComponentClient()
   const { toast } = useToast()
   const router = useRouter()
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   const handleEditorInvite = async (accept: boolean) => {
     setLoading(true)
@@ -179,7 +184,13 @@ export function NotificationItem({ notification, onActionComplete }: Notificatio
           <div className="flex-1">
             <p className="text-sm font-medium">{notification.message}</p>
             <p className="text-xs text-muted-foreground mt-1">
-              {new Date(notification.created_at).toLocaleString()}
+              {mounted ? new Date(notification.created_at).toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+              }) : ''}
             </p>
           </div>
           {getStatusBadge()}

@@ -28,7 +28,7 @@ CREATE TABLE projects (
   description TEXT,
   thumbnail_url TEXT,
   status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'in_review', 'needs_changes', 'approved')),
-  final_version_id UUID REFERENCES video_versions(id),
+  final_version_number INT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -257,6 +257,10 @@ CREATE TRIGGER update_youtuber_editors_modtime
 BEFORE UPDATE ON youtuber_editors
 FOR EACH ROW
 EXECUTE PROCEDURE update_modified_column();
+
+-- Add foreign key constraint for final_version_number after video_versions table exists
+-- Note: We need to reference both project_id and version_number since version_number alone is not unique
+-- We'll handle this constraint in the application logic instead of database level
 
 CREATE POLICY "Creator manages own invites"
   ON editor_invites FOR ALL USING (creator_id = auth.uid());

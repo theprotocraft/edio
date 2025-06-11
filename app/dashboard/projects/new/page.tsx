@@ -23,8 +23,8 @@ export default async function NewProjectPage() {
   }
   
   return (
-    <div className="container max-w-4xl py-6">
-      <h1 className="mb-6 text-3xl font-bold">Create New Project</h1>
+    <div className="flex flex-col space-y-6 w-full max-w-none">
+      <h1 className="text-3xl font-bold tracking-tight">Create New Project</h1>
       <CreateProjectForm />
     </div>
   )

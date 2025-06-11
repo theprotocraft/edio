@@ -18,7 +18,7 @@ export default async function DashboardPage() {
       <div>
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-3xl font-bold">Dashboard</h1>
-          <Link href="/projects/new">
+          <Link href="/dashboard/projects/new">
             <Button>
               <Plus className="mr-2 h-4 w-4" /> New Project
             </Button>
@@ -84,7 +84,7 @@ export default async function DashboardPage() {
               {projects && projects.length > 0 ? (
                 <div className="space-y-4">
                   {projects.map((project) => (
-                    <Link key={project.id} href={`/projects/${project.id}`} className="block">
+                    <Link key={project.id} href={`/dashboard/projects/${project.id}`} className="block">
                       <div className="flex items-center space-x-4 rounded-md border p-4 hover:bg-gray-50 dark:hover:bg-gray-900">
                         <div className="flex-1 space-y-1">
                           <p className="font-medium">{project.project_title}</p>
@@ -131,7 +131,7 @@ export default async function DashboardPage() {
               )}
               {projects && projects.length > 0 && (
                 <div className="mt-4">
-                  <Link href="/projects">
+                  <Link href="/dashboard/projects">
                     <Button variant="outline" className="w-full">
                       View All Projects
                     </Button>

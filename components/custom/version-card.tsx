@@ -38,7 +38,7 @@ interface VersionCardProps {
   project: {
     id: string
     owner_id: string
-    final_version_id?: string
+    final_version_number?: number
   }
   userRole: "creator" | "editor"
   onPreview: () => void
@@ -62,14 +62,14 @@ export function VersionCard({
 
   const isCreator = userRole === "creator"
   const isOwner = version.uploader_id === project.owner_id
-  const isFinal = project.final_version_id === version.id
+  const isFinal = project.final_version_number === version.version_number
   const canDelete = (isCreator && isOwner) || (!isCreator && !isOwner)
   const canSetFinal = isCreator && !isFinal
 
   const handleSetFinal = async () => {
     setLoading(true)
     try {
-      await updateProject(project.id, { finalVersionId: version.id })
+      await updateProject(project.id, { finalVersionNumber: version.version_number })
       
       toast({
         title: "Final version set",

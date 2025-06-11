@@ -23,10 +23,6 @@ export default async function OverviewPage() {
 
     return (
       <div className="flex flex-col gap-4">
-        <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold">Overview</h1>
-          <Notifications />
-        </div>
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
           <Link href="/dashboard/projects/new">
@@ -127,9 +123,8 @@ export default async function OverviewPage() {
     console.error("Error fetching dashboard data:", error)
     return (
       <div className="flex flex-col gap-4">
-        <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold">Overview</h1>
-          <Notifications />
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
         </div>
         <div className="text-center text-muted-foreground">
           Error loading dashboard data. Please try again later.

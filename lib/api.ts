@@ -142,13 +142,13 @@ export async function updateProject(id: string, {
   videoTitle, 
   description,
   hashtags,
-  finalVersionId
+  finalVersionNumber
 }: { 
   title?: string; 
   videoTitle?: string; 
   description?: string;
   hashtags?: string;
-  finalVersionId?: string;
+  finalVersionNumber?: number;
 }) {
   const supabase = createClient()
 
@@ -157,7 +157,7 @@ export async function updateProject(id: string, {
   if (videoTitle !== undefined) updateData.video_title = videoTitle
   if (description !== undefined) updateData.description = description
   if (hashtags !== undefined) updateData.hashtags = hashtags
-  if (finalVersionId !== undefined) updateData.final_version_id = finalVersionId
+  if (finalVersionNumber !== undefined) updateData.final_version_number = finalVersionNumber
 
   const { error } = await supabase
     .from("projects")
