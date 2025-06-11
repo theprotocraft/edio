@@ -1,6 +1,98 @@
 import { NextResponse } from "next/server"
 import { createRouteClient } from "@/app/supabase-route"
 
+export async function GET(request: Request) {
+  try {
+    const supabase = await createRouteClient()
+    
+    // Get authenticated user
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
+    
+    if (userError || !user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    // Get user profile to determine role
+    const { data: userData, error: profileError } = await supabase
+      .from("users")
+      .select("role")
+      .eq("id", user.id)
+      .single()
+      
+    if (profileError || !userData) {
+      return NextResponse.json({ error: "User profile not found" }, { status: 400 })
+    }
+    
+    const isCreator = userData.role === "youtuber"
+    
+    // Fetch projects based on user role
+    let projectsQuery = supabase
+      .from("projects")
+      .select(`
+        id,
+        project_title,
+        description,
+        status,
+        created_at,
+        updated_at,
+        owner_id,
+        users!projects_owner_id_fkey(name, avatar_url)
+      `)
+      .order("updated_at", { ascending: false })
+    
+    // If user is an editor, only show projects they're assigned to
+    if (!isCreator) {
+      const { data: editorProjects } = await supabase
+        .from("project_editors")
+        .select("project_id")
+        .eq("editor_id", user.id)
+        .eq("status", "accepted")
+      
+      const projectIds = editorProjects?.map(ep => ep.project_id) || []
+      
+      if (projectIds.length === 0) {
+        return NextResponse.json({ 
+          user, 
+          projects: [], 
+          isCreator 
+        })
+      }
+      
+      projectsQuery = projectsQuery.in("id", projectIds)
+    } else {
+      // If user is a creator, show only their projects
+      projectsQuery = projectsQuery.eq("owner_id", user.id)
+    }
+    
+    const { data: projects, error: projectsError } = await projectsQuery
+    
+    if (projectsError) {
+      console.error("Error fetching projects:", projectsError)
+      return NextResponse.json({ error: "Failed to fetch projects" }, { status: 500 })
+    }
+    
+    // Transform projects to match expected format
+    const transformedProjects = projects?.map(project => ({
+      id: project.id,
+      title: project.project_title,
+      description: project.description,
+      status: project.status,
+      created_at: project.created_at,
+      updated_at: project.updated_at,
+      owner: project.users
+    })) || []
+    
+    return NextResponse.json({ 
+      user, 
+      projects: transformedProjects, 
+      isCreator 
+    })
+  } catch (error) {
+    console.error("Error in projects GET API:", error)
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+  }
+}
+
 export async function POST(request: Request) {
   try {
     const supabase = await createRouteClient()
