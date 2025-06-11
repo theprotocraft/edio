@@ -71,7 +71,7 @@ export default async function DashboardLayout({ children }: DashboardLayoutProps
         </div>
       </header>
       <div className="flex-1 flex">
-        <aside className="hidden w-[200px] flex-col md:flex border-r bg-background/50 p-6">
+        <aside className="hidden w-[200px] flex-col md:flex bg-background/50 p-6">
           <DashboardNav />
         </aside>
         <main className="flex-1 flex flex-col p-6">

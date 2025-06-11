@@ -80,10 +80,41 @@ export function Notifications() {
 
   const unreadCount = notifications.filter((n) => !n.read).length
 
+  const markAllAsRead = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      // Mark all unread notifications as read
+      const unreadIds = notifications.filter(n => !n.read).map(n => n.id)
+      if (unreadIds.length === 0) return
+
+      const { error } = await supabase
+        .from("notifications")
+        .update({ read: true })
+        .in("id", unreadIds)
+
+      if (error) throw error
+      
+      // Refresh notifications to update the UI
+      await fetchNotifications()
+    } catch (error) {
+      console.error("Error marking notifications as read:", error)
+    }
+  }
+
   return (
-    <DropdownMenu>
+    <DropdownMenu onOpenChange={(open) => {
+      if (open) {
+        markAllAsRead()
+      }
+    }}>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative">
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          className="relative"
+        >
           <Bell className="h-5 w-5" />
           {unreadCount > 0 && (
             <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-red-500 text-[10px] font-medium text-white flex items-center justify-center">

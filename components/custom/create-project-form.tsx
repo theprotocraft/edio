@@ -76,41 +76,44 @@ export default function CreateProjectForm() {
   }
 
   return (
-    <Card className="shadow-md">
-      <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)}>
-          <CardHeader>
-            <CardTitle>Project Details</CardTitle>
-            <CardDescription>Fill in the details for your new video project</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <FormField
-              control={form.control}
-              name="projectTitle"
-              render={({ field }) => (
-                <FormItem className="space-y-2">
-                  <FormLabel>Project Title (Internal)</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Enter project title for internal tracking" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+    <div className="w-full max-w-6xl mx-auto">
+      <Card className="shadow-md">
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)}>
+            <CardHeader>
+              <CardTitle>Project Details</CardTitle>
+              <CardDescription>Fill in the details for your new video project</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <FormField
+                control={form.control}
+                name="projectTitle"
+                render={({ field }) => (
+                  <FormItem className="space-y-2">
+                    <FormLabel>Project Title (Internal)</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Enter project title for internal tracking" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-            <FormField
-              control={form.control}
-              name="videoTitle"
-              render={({ field }) => (
-                <FormItem className="space-y-2">
-                  <FormLabel>Video Title (Optional)</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Enter final YouTube video title" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+              <FormField
+                control={form.control}
+                name="videoTitle"
+                render={({ field }) => (
+                  <FormItem className="space-y-2">
+                    <FormLabel>Video Title (Optional)</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Enter final YouTube video title" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
 
             <FormField
               control={form.control}
@@ -185,5 +188,6 @@ export default function CreateProjectForm() {
         </form>
       </Form>
     </Card>
+    </div>
   )
 } 
