@@ -112,7 +112,7 @@ export function VideoVersions({ project, versions, userRole }: VideoVersionsProp
                 project={project}
                 userRole={userRole}
                 onPreview={() => handlePreview(version)}
-                onFeedback={userRole === "creator" ? () => handleFeedback(version) : undefined}
+                onFeedback={userRole === "youtuber" ? () => handleFeedback(version) : undefined}
                 uploaderName={version.uploader?.name}
               />
             ))}
@@ -122,7 +122,7 @@ export function VideoVersions({ project, versions, userRole }: VideoVersionsProp
             <Video className="h-10 w-10 text-muted-foreground mb-4" />
             <h3 className="text-lg font-medium">No video versions yet</h3>
             <p className="text-sm text-muted-foreground mb-4">
-              {userRole === "creator" 
+              {userRole === "youtuber" 
                 ? "Your editor will upload the first version here." 
                 : "Upload your first video version to get started."
               }

@@ -1,0 +1,180 @@
+import { google } from 'googleapis'
+import { createServerClient } from '@/app/lib/supabase-server'
+import { generatePresignedViewUrl } from '@/lib/s3-service'
+import { Readable } from 'stream'
+
+export async function getYouTubeClient(userId: string) {
+  const supabase = await createServerClient()
+  
+  // Get user's YouTube channel and tokens
+  const { data: channel, error } = await supabase
+    .from('youtube_channels')
+    .select('*')
+    .eq('user_id', userId)
+    .single()
+
+  if (error) {
+    if (error.code === 'PGRST116') {
+      throw new Error('No YouTube channel connected')
+    }
+    throw new Error('Failed to fetch YouTube channel')
+  }
+
+  if (!channel) {
+    throw new Error('No YouTube channel connected')
+  }
+
+  console.log("channel", channel)
+
+  // Create OAuth2 client
+  const oauth2Client = new google.auth.OAuth2(
+    process.env.NEXT_PUBLIC_YOUTUBE_CLIENT_ID,
+    process.env.YOUTUBE_CLIENT_SECRET
+  )
+
+  // Check if token is expired or about to expire (within 1 hour)
+  const tokenExpiresAt = new Date(channel.token_expires_at)
+  const oneHourFromNow = new Date(Date.now() + 60 * 60 * 1000)
+  
+  let accessToken = channel.access_token
+  
+  if (tokenExpiresAt <= oneHourFromNow) {
+    // Refresh the token if it's expired or about to expire
+    accessToken = await refreshYouTubeToken(userId)
+  }
+
+  // Set credentials on the OAuth2 client
+  oauth2Client.setCredentials({
+    access_token: accessToken,
+    refresh_token: channel.refresh_token
+  })
+
+  // Create and return YouTube client with auth
+  const youtube = google.youtube('v3')
+  youtube.context._options = {
+    ...youtube.context._options,
+    auth: oauth2Client
+  }
+
+  return youtube
+}
+
+export async function uploadVideoToYouTube({
+  youtube,
+  videoUrl,
+  title,
+  description,
+  channelId,
+  privacyStatus = 'private'
+}: {
+  youtube: any
+  videoUrl: string
+  title: string
+  description: string
+  channelId: string
+  privacyStatus?: 'private' | 'unlisted' | 'public'
+}) {
+  try {
+    // Extract the file path from the full S3 URL
+    const url = new URL(videoUrl)
+    const filePath = url.pathname.startsWith('/') ? url.pathname.substring(1) : url.pathname
+    
+    // Get presigned URL for the video using server-side function
+    const { presignedUrl, error } = await generatePresignedViewUrl({ filePath })
+    
+    if (error || !presignedUrl) {
+      throw new Error(error || 'Failed to generate presigned URL')
+    }
+    
+    // Get the video stream directly from S3
+    const response = await fetch(presignedUrl, {
+      headers: {
+        'Accept': 'video/*'
+      }
+    })
+    if (!response.ok) {
+      throw new Error('Failed to fetch video from storage')
+    }
+
+    // Get the video data as an ArrayBuffer
+    const arrayBuffer = await response.arrayBuffer()
+    
+    // Create a Node.js readable stream from the ArrayBuffer
+    const nodeStream = new Readable()
+    nodeStream.push(Buffer.from(arrayBuffer))
+    nodeStream.push(null)
+
+    // Upload to YouTube using the stream
+    const uploadResponse = await youtube.videos.insert({
+      part: 'snippet,status',
+      requestBody: {
+        snippet: {
+          title,
+          description,
+          channelId,
+        },
+        status: {
+          privacyStatus,
+          selfDeclaredMadeForKids: false,
+        },
+      },
+      media: {
+        body: nodeStream,
+      },
+    })
+
+    return uploadResponse.data
+  } catch (error: any) {
+    console.error('Error uploading to YouTube:', error)
+    throw new Error(error.message || 'Failed to upload video to YouTube')
+  }
+}
+
+export async function refreshYouTubeToken(userId: string) {
+  const supabase = await createServerClient()
+  
+  // Get channel data
+  const { data: channel, error } = await supabase
+    .from('youtube_channels')
+    .select('*')
+    .eq('user_id', userId)
+    .single()
+
+  if (error || !channel) {
+    throw new Error('YouTube channel not found')
+  }
+
+  try {
+    // Create OAuth2 client
+    const oauth2Client = new google.auth.OAuth2(
+      process.env.NEXT_PUBLIC_YOUTUBE_CLIENT_ID,
+      process.env.YOUTUBE_CLIENT_SECRET
+    )
+
+    oauth2Client.setCredentials({
+      refresh_token: channel.refresh_token
+    })
+
+    // Get new access token with longer expiration (7 days)
+    const { credentials } = await oauth2Client.refreshAccessToken()
+    
+    // Calculate expiration time (7 days from now)
+    const expiresIn = 7 * 24 * 60 * 60 // 7 days in seconds
+    const expiresAt = new Date(Date.now() + expiresIn * 1000)
+
+    // Update tokens in database
+    await supabase
+      .from('youtube_channels')
+      .update({
+        access_token: credentials.access_token,
+        token_expires_at: expiresAt.toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('user_id', userId)
+
+    return credentials.access_token
+  } catch (error: any) {
+    console.error('Error refreshing YouTube token:', error)
+    throw new Error('Failed to refresh YouTube token')
+  }
+} 
