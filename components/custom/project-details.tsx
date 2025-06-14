@@ -60,7 +60,6 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
   const { toast } = useToast()
   const { user } = useSupabase()
 
-  console.log("uploads", uploads)
   // Find thumbnail from uploads (if any)
   const thumbnailUpload = uploads.find(upload => upload.file_type === "thumbnail");
 
@@ -231,6 +230,17 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
 
     setPublishing(true)
     try {
+      // First save any pending changes
+      const formData = form.getValues()
+      await updateProject(project.id, {
+        title: project.project_title,
+        videoTitle: formData.videoTitle,
+        description: formData.description,
+        hashtags: formData.hashtags,
+        youtube_channel_id: formData.youtubeChannel,
+      })
+
+      // Then publish to YouTube
       const response = await fetch(`/api/projects/${project.id}/publish`, {
         method: 'POST',
         headers: {
@@ -247,6 +257,9 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
         title: "Success",
         description: "Video has been published to YouTube in private mode.",
       })
+
+      // Refresh the page to show updated data
+      router.refresh()
     } catch (error: any) {
       toast({
         title: "Error",
