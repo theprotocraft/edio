@@ -566,64 +566,32 @@ export async function assignEditorToProject(projectId: string, editorId: string)
       return { success: false, message: "Editor must be invited and accept invitation before assignment" }
     }
 
-    // Check if project_editors table exists, if not use metadata approach
-    const { data: existingProjectEditors, error: checkTableError } = await supabase
+    // Check if editor is already assigned to the project
+    const { data: existingAssignment, error: checkError } = await supabase
       .from("project_editors")
       .select("id")
       .eq("project_id", projectId)
       .eq("editor_id", editorId)
       .maybeSingle()
 
-    if (checkTableError && checkTableError.code !== "42P01") { // 42P01 = table does not exist
-      throw checkTableError
+    if (checkError) {
+      throw checkError
     }
 
-    if (checkTableError?.code === "42P01") {
-      // project_editors table doesn't exist, use metadata approach
-      const { data: currentProject, error: fetchError } = await supabase
-        .from("projects")
-        .select("metadata")
-        .eq("id", projectId)
-        .single()
+    if (existingAssignment) {
+      return { success: true, message: "Editor is already assigned to this project" }
+    }
 
-      if (fetchError) {
-        throw fetchError
-      }
+    // Assign the editor to the project
+    const { error: insertError } = await supabase
+      .from("project_editors")
+      .insert({
+        project_id: projectId,
+        editor_id: editorId
+      })
 
-      const currentMetadata = currentProject.metadata || {}
-      const assignedEditors = currentMetadata.assigned_editors || []
-
-      if (assignedEditors.includes(editorId)) {
-        return { success: true, message: "Editor is already assigned to this project" }
-      }
-
-      const updatedEditors = [...assignedEditors, editorId]
-      const { error: updateError } = await supabase
-        .from("projects")
-        .update({
-          metadata: { ...currentMetadata, assigned_editors: updatedEditors }
-        })
-        .eq("id", projectId)
-
-      if (updateError) {
-        throw updateError
-      }
-    } else {
-      // project_editors table exists
-      if (existingProjectEditors) {
-        return { success: true, message: "Editor is already assigned to this project" }
-      }
-
-      const { error: insertError } = await supabase
-        .from("project_editors")
-        .insert({
-          project_id: projectId,
-          editor_id: editorId
-        })
-
-      if (insertError) {
-        throw insertError
-      }
+    if (insertError) {
+      throw insertError
     }
 
     return { success: true, message: "Editor assigned successfully" }

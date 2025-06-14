@@ -214,25 +214,33 @@ export async function fetchProjectDetails(id: string) {
       console.error("Error fetching owner:", ownerError)
     }
     
-    // Step 3: Get editors data
-    const { data: editors, error: editorsError } = await supabase
-      .from("youtuber_editors")
+    // Step 3: Get assigned editors from project_editors table
+    const { data: assignedEditors, error: assignedEditorsError } = await supabase
+      .from("project_editors")
       .select(`
         id,
         editor_id,
         editor:users(id, name, email)
       `)
-      .eq("youtuber_id", basicProject.owner_id)
-      
-    if (editorsError) {
-      // Log error server-side only
+      .eq("project_id", id)
+    
+    if (assignedEditorsError) {
+      console.error("Error fetching assigned editors:", assignedEditorsError)
     }
+    
+    // Get all available editors for access control (simplified)
+    const { data: allEditors } = await supabase
+      .from("youtuber_editors")
+      .select("editor_id")
+      .eq("youtuber_id", basicProject.owner_id)
+      .eq("status", "active")
     
     // Check access rights
     const userIsOwner = basicProject.owner_id === user.id
-    const userIsEditor = editors?.some((e: { editor_id: string }) => e.editor_id === user.id) || false
+    const userIsAssignedEditor = assignedEditors?.some((e: { editor_id: string }) => e.editor_id === user.id) || false
+    const userIsAvailableEditor = allEditors?.some((e: { editor_id: string }) => e.editor_id === user.id) || false
     
-    if (!userIsOwner && !userIsEditor) {
+    if (!userIsOwner && !userIsAssignedEditor && !userIsAvailableEditor) {
       return { project: null }
     }
     
@@ -240,7 +248,7 @@ export async function fetchProjectDetails(id: string) {
     const project = {
       ...basicProject,
       owner: owner || null,
-      editors: editors || []
+      editors: assignedEditors || []
     }
     
     // Step 4: Get uploads

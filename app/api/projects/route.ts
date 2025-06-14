@@ -223,17 +223,18 @@ export async function POST(request: Request) {
       const validEditorIds = validEditors?.map(ve => ve.editor_id) || []
       
       if (validEditorIds.length > 0) {
-        // For now, we'll create a simple project metadata record to store assigned editors
-        // This could be expanded later to a proper project_editors table
-        const { error: metadataError } = await supabase
-          .from("projects")
-          .update({
-            metadata: { assigned_editors: validEditorIds }
-          })
-          .eq("id", project.id)
+        // Insert editor assignments into project_editors table
+        const editorAssignments = validEditorIds.map(editorId => ({
+          project_id: project.id,
+          editor_id: editorId
+        }))
         
-        if (metadataError) {
-          console.error("Error saving editor assignments:", metadataError)
+        const { error: assignmentError } = await supabase
+          .from("project_editors")
+          .insert(editorAssignments)
+        
+        if (assignmentError) {
+          console.error("Error saving editor assignments:", assignmentError)
           return NextResponse.json({ 
             projectId: project.id,
             warning: "Project created but editor assignments may be incomplete"
