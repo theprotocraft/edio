@@ -2,6 +2,7 @@ import { google } from 'googleapis'
 import { createServerClient } from '@/app/lib/supabase-server'
 import { generatePresignedViewUrl } from '@/lib/s3-service'
 import { Readable } from 'stream'
+import { encrypt, decrypt } from '@/lib/encryption'
 
 export async function getYouTubeClient(channelId: string) {
   const supabase = await createServerClient()
@@ -36,7 +37,11 @@ export async function getYouTubeClient(channelId: string) {
   const tokenExpiresAt = new Date(channel.token_expires_at)
   const oneHourFromNow = new Date(Date.now() + 60 * 60 * 1000)
   
-  let accessToken = channel.access_token
+  if (!channel.access_token || !channel.refresh_token) {
+    throw new Error('Invalid YouTube channel tokens')
+  }
+  
+  let accessToken = decrypt(channel.access_token)
   
   if (tokenExpiresAt <= oneHourFromNow) {
     // Refresh the token if it's expired or about to expire
@@ -46,7 +51,7 @@ export async function getYouTubeClient(channelId: string) {
   // Set credentials on the OAuth2 client
   oauth2Client.setCredentials({
     access_token: accessToken,
-    refresh_token: channel.refresh_token
+    refresh_token: decrypt(channel.refresh_token)
   })
 
   // Create and return YouTube client with auth
@@ -186,6 +191,10 @@ export async function refreshYouTubeToken(channelId: string) {
     throw new Error('YouTube channel not found')
   }
 
+  if (!channel.refresh_token) {
+    throw new Error('Invalid refresh token')
+  }
+
   try {
     // Create OAuth2 client
     const oauth2Client = new google.auth.OAuth2(
@@ -194,26 +203,31 @@ export async function refreshYouTubeToken(channelId: string) {
     )
 
     oauth2Client.setCredentials({
-      refresh_token: channel.refresh_token
+      refresh_token: decrypt(channel.refresh_token)
     })
 
     // Get new access token with longer expiration (7 days)
     const { credentials } = await oauth2Client.refreshAccessToken()
     
+    if (!credentials.access_token) {
+      throw new Error('Failed to get new access token')
+    }
+    
     // Calculate expiration time (7 days from now)
     const expiresIn = 7 * 24 * 60 * 60 // 7 days in seconds
     const expiresAt = new Date(Date.now() + expiresIn * 1000)
 
-    // Update tokens in database
+    // Update tokens in database (encrypted)
     await supabase
       .from('youtube_channels')
       .update({
-        access_token: credentials.access_token,
+        access_token: encrypt(credentials.access_token),
         token_expires_at: expiresAt.toISOString(),
         updated_at: new Date().toISOString(),
       })
       .eq('channel_id', channelId)
 
+    // Return the decrypted access token for immediate use
     return credentials.access_token
   } catch (error: any) {
     console.error('Error refreshing YouTube token:', error)
