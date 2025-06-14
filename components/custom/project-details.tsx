@@ -60,6 +60,7 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
   const { toast } = useToast()
   const { user } = useSupabase()
 
+  console.log("uploads", uploads)
   // Find thumbnail from uploads (if any)
   const thumbnailUpload = uploads.find(upload => upload.file_type === "thumbnail");
 
@@ -132,7 +133,6 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
       return () => clearInterval(interval)
     }
   }, [project.id, project.publishing_status, router])
-
   const form = useForm<ProjectDetailsFormValues>({
     resolver: zodResolver(projectDetailsSchema),
     defaultValues: {

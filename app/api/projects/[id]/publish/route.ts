@@ -11,7 +11,6 @@ export async function POST(
     const resolvedParams = await params
     const projectId = resolvedParams.id
     const supabase = await createServerClient()
-    
     // Get current user
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
@@ -30,7 +29,6 @@ export async function POST(
       .select("owner_id, final_version_number")
       .eq("id", projectId)
       .single()
-      
     if (projectError || !project) {
       return NextResponse.json(
         { error: "Project not found" },

@@ -320,7 +320,8 @@ export async function fetchProjectDetails(id: string) {
       versions: versions || [],
       messages: messages || [],
       userRole,
-      userId: user.id
+      userId: user.id,
+      activeEditors
     }
   } catch (error) {
     console.error("Error in fetchProjectDetails:", error)
