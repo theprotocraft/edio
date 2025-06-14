@@ -31,7 +31,7 @@ export function NotificationsList({ notifications }: NotificationsListProps) {
                   <p className="font-medium">{notification.type}</p>
                   <p className="text-sm text-muted-foreground">{notification.message}</p>
                   <p className="text-xs text-muted-foreground">
-                    {new Date(notification.created_at).toLocaleDateString()}
+                    {new Date(notification.created_at).toISOString().split('T')[0]}
                   </p>
                   {notification.type === 'editor_invite' && (
                     <NotificationActions 
