@@ -275,6 +275,7 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
           description: formData.description,
           hashtags: formData.hashtags,
           youtubeChannel: formData.youtubeChannel,
+          thumbnailUrl: thumbnailUrl,
         }),
       })
 
@@ -540,18 +541,6 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
                     </>
                   )}
                 </Button>
-              )}
-
-              {project.publishing_status === 'failed' && (
-                <div className="mt-2 text-sm text-red-500">
-                  Failed to publish to YouTube. Please try again.
-                </div>
-              )}
-
-              {project.publishing_status === 'completed' && (
-                <div className="mt-2 text-sm text-green-500">
-                  Video published to YouTube successfully!
-                </div>
               )}
             </CardFooter>
           </form>

@@ -22,7 +22,8 @@ export async function GET(request: Request) {
       access_type: 'offline',
       scope: [
         'https://www.googleapis.com/auth/youtube.readonly',
-        'https://www.googleapis.com/auth/youtube.upload'
+        'https://www.googleapis.com/auth/youtube.upload',
+        'https://www.googleapis.com/auth/youtube.force-ssl'
       ],
       prompt: 'consent',
       state: userId, // Pass userId in state for verification

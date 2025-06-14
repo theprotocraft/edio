@@ -3,14 +3,14 @@ import { createServerClient } from '@/app/lib/supabase-server'
 import { generatePresignedViewUrl } from '@/lib/s3-service'
 import { Readable } from 'stream'
 
-export async function getYouTubeClient(userId: string) {
+export async function getYouTubeClient(channelId: string) {
   const supabase = await createServerClient()
   
-  // Get user's YouTube channel and tokens
+  // Get YouTube channel and tokens by channel ID
   const { data: channel, error } = await supabase
     .from('youtube_channels')
     .select('*')
-    .eq('user_id', userId)
+    .eq('id', channelId)
     .single()
 
   if (error) {
@@ -40,7 +40,7 @@ export async function getYouTubeClient(userId: string) {
   
   if (tokenExpiresAt <= oneHourFromNow) {
     // Refresh the token if it's expired or about to expire
-    accessToken = await refreshYouTubeToken(userId)
+    accessToken = await refreshYouTubeToken(channelId)
   }
 
   // Set credentials on the OAuth2 client
@@ -65,7 +65,9 @@ export async function uploadVideoToYouTube({
   title,
   description,
   channelId,
-  privacyStatus = 'private'
+  privacyStatus = 'private',
+  thumbnailUrl = null,
+  tags = []
 }: {
   youtube: any
   videoUrl: string
@@ -73,11 +75,22 @@ export async function uploadVideoToYouTube({
   description: string
   channelId: string
   privacyStatus?: 'private' | 'unlisted' | 'public'
+  thumbnailUrl?: string | null
+  tags?: string[]
 }) {
   try {
+    if (!videoUrl) {
+      throw new Error('Video URL is required')
+    }
+
     // Extract the file path from the full S3 URL
-    const url = new URL(videoUrl)
-    const filePath = url.pathname.startsWith('/') ? url.pathname.substring(1) : url.pathname
+    let filePath: string
+    try {
+      const url = new URL(videoUrl)
+      filePath = url.pathname.startsWith('/') ? url.pathname.substring(1) : url.pathname
+    } catch (error) {
+      throw new Error('Invalid video URL format')
+    }
     
     // Get presigned URL for the video using server-side function
     const { presignedUrl, error } = await generatePresignedViewUrl({ filePath })
@@ -112,6 +125,7 @@ export async function uploadVideoToYouTube({
           title,
           description,
           channelId,
+          tags,
         },
         status: {
           privacyStatus,
@@ -123,6 +137,34 @@ export async function uploadVideoToYouTube({
       },
     })
 
+    // If we have a thumbnail, upload it
+    console.log("thumbnailUrl", thumbnailUrl)
+    if (thumbnailUrl) {
+      try {
+        // Get the thumbnail image
+        const thumbnailResponse = await fetch(thumbnailUrl)
+        if (!thumbnailResponse.ok) {
+          throw new Error('Failed to fetch thumbnail')
+        }
+
+        const thumbnailBuffer = await thumbnailResponse.arrayBuffer()
+        const thumbnailStream = new Readable()
+        thumbnailStream.push(Buffer.from(thumbnailBuffer))
+        thumbnailStream.push(null)
+
+        // Upload thumbnail
+        await youtube.thumbnails.set({
+          videoId: uploadResponse.data.id,
+          media: {
+            body: thumbnailStream,
+          },
+        })
+      } catch (error) {
+        console.error('Error uploading thumbnail:', error)
+        // Don't throw error here, as the video was uploaded successfully
+      }
+    }
+
     return uploadResponse.data
   } catch (error: any) {
     console.error('Error uploading to YouTube:', error)
@@ -130,14 +172,14 @@ export async function uploadVideoToYouTube({
   }
 }
 
-export async function refreshYouTubeToken(userId: string) {
+export async function refreshYouTubeToken(channelId: string) {
   const supabase = await createServerClient()
   
-  // Get channel data
+  // Get channel data by channel ID
   const { data: channel, error } = await supabase
     .from('youtube_channels')
     .select('*')
-    .eq('user_id', userId)
+    .eq('channel_id', channelId)
     .single()
 
   if (error || !channel) {
@@ -170,7 +212,7 @@ export async function refreshYouTubeToken(userId: string) {
         token_expires_at: expiresAt.toISOString(),
         updated_at: new Date().toISOString(),
       })
-      .eq('user_id', userId)
+      .eq('channel_id', channelId)
 
     return credentials.access_token
   } catch (error: any) {
