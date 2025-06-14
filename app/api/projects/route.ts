@@ -127,7 +127,8 @@ export async function POST(request: Request) {
       hashtags,
       fileUrl,
       fileName,
-      fileSize
+      fileSize,
+      selectedEditors
     } = await request.json()
     
     // Validate required fields
@@ -199,6 +200,46 @@ export async function POST(request: Request) {
         projectId: project.id,
         warning: "Project created but version record may be incomplete"
       })
+    }
+    
+    // Assign selected editors to the project
+    if (selectedEditors && selectedEditors.length > 0) {
+      // First, verify that all selected editors have an active relationship with this YouTuber
+      const { data: validEditors, error: validationError } = await supabase
+        .from("youtuber_editors")
+        .select("editor_id")
+        .eq("youtuber_id", user.id)
+        .eq("status", "active")
+        .in("editor_id", selectedEditors)
+      
+      if (validationError) {
+        console.error("Error validating editors:", validationError)
+        return NextResponse.json({ 
+          projectId: project.id,
+          warning: "Project created but editor assignments may be incomplete"
+        })
+      }
+      
+      const validEditorIds = validEditors?.map(ve => ve.editor_id) || []
+      
+      if (validEditorIds.length > 0) {
+        // For now, we'll create a simple project metadata record to store assigned editors
+        // This could be expanded later to a proper project_editors table
+        const { error: metadataError } = await supabase
+          .from("projects")
+          .update({
+            metadata: { assigned_editors: validEditorIds }
+          })
+          .eq("id", project.id)
+        
+        if (metadataError) {
+          console.error("Error saving editor assignments:", metadataError)
+          return NextResponse.json({ 
+            projectId: project.id,
+            warning: "Project created but editor assignments may be incomplete"
+          })
+        }
+      }
     }
     
     return NextResponse.json({ projectId: project.id })

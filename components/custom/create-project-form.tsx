@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -11,9 +11,10 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { createProject } from "@/lib/api"
+import { createProject, fetchEditors } from "@/lib/api"
 import DragDrop from "./drag-drop"
 import { Progress } from "@/components/ui/progress"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 const projectSchema = z.object({
   projectTitle: z.string().min(1, "Project title is required"),
@@ -21,13 +22,22 @@ const projectSchema = z.object({
   description: z.string().optional(),
   hashtags: z.string().optional(),
   file: z.instanceof(File, { message: "Video file is required" }),
+  selectedEditor: z.string().optional(),
 })
 
 type ProjectFormValues = z.infer<typeof projectSchema>
 
+interface Editor {
+  id: string
+  email: string
+  name: string
+}
+
 export default function CreateProjectForm() {
   const [loading, setLoading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
+  const [editors, setEditors] = useState<Editor[]>([])
+  const [loadingEditors, setLoadingEditors] = useState(true)
   const router = useRouter()
   const { toast } = useToast()
 
@@ -38,8 +48,23 @@ export default function CreateProjectForm() {
       videoTitle: "",
       description: "",
       hashtags: "",
+      selectedEditor: "",
     },
   })
+
+  useEffect(() => {
+    const loadEditors = async () => {
+      try {
+        const editorsData = await fetchEditors()
+        setEditors(editorsData)
+      } catch (error) {
+        console.error('Failed to fetch editors:', error)
+      } finally {
+        setLoadingEditors(false)
+      }
+    }
+    loadEditors()
+  }, [])
 
   const onSubmit = async (data: ProjectFormValues) => {
     setLoading(true)
@@ -52,6 +77,7 @@ export default function CreateProjectForm() {
         description: data.description,
         hashtags: data.hashtags,
         file: data.file,
+        selectedEditors: data.selectedEditor ? [data.selectedEditor] : [],
         onProgress: (progress: number) => {
           setUploadProgress(progress)
         },
@@ -165,6 +191,52 @@ export default function CreateProjectForm() {
                 </FormItem>
               )}
             />
+
+            {!loadingEditors && editors.length > 0 && (
+              <FormField
+                control={form.control}
+                name="selectedEditor"
+                render={({ field }) => (
+                  <FormItem className="space-y-2">
+                    <FormLabel>Select Editor (Optional)</FormLabel>
+                    <Select onValueChange={(value) => field.onChange(value === "none" ? "" : value)} defaultValue={field.value || "none"}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Choose an editor" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="none">No editor selected</SelectItem>
+                        {editors.map((editor) => (
+                          <SelectItem key={editor.id} value={editor.id}>
+                            {editor.name || editor.email}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+
+            {!loadingEditors && editors.length === 0 && (
+              <div className="space-y-2">
+                <FormLabel>Editors</FormLabel>
+                <div className="p-4 border rounded-lg bg-muted/50">
+                  <p className="text-sm text-muted-foreground mb-2">
+                    No editors available for assignment.
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    To assign editors to projects, first invite them from the{" "}
+                    <a href="/dashboard/editors" className="text-primary underline">
+                      Editors page
+                    </a>{" "}
+                    and wait for them to accept your invitation.
+                  </p>
+                </div>
+              </div>
+            )}
 
             {loading && uploadProgress > 0 && (
               <div className="space-y-2">

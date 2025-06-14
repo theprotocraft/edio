@@ -29,6 +29,7 @@ export async function createProject({
   description,
   hashtags,
   file,
+  selectedEditors,
   onProgress
 }: { 
   projectTitle: string; 
@@ -36,6 +37,7 @@ export async function createProject({
   description?: string;
   hashtags?: string;
   file: File;
+  selectedEditors?: string[];
   onProgress?: (progress: number) => void;
 }): Promise<string> {
   try {
@@ -77,6 +79,7 @@ export async function createProject({
         fileUrl,
         fileName: file.name,
         fileSize: file.size,
+        selectedEditors,
       }),
     })
 
@@ -529,33 +532,98 @@ export async function assignEditorToProject(projectId: string, editorId: string)
   const supabase = createClient()
 
   try {
-    // Check if the editor is already assigned to the project
-    const { data: existingAssignment, error: checkError } = await supabase
+    // Get current user (YouTuber)
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
+    if (userError || !user) {
+      return { success: false, message: "User not authenticated" }
+    }
+
+    // Verify the user owns this project
+    const { data: project, error: projectError } = await supabase
+      .from("projects")
+      .select("owner_id")
+      .eq("id", projectId)
+      .single()
+
+    if (projectError || !project || project.owner_id !== user.id) {
+      return { success: false, message: "Project not found or access denied" }
+    }
+
+    // Check if editor has active relationship with this YouTuber
+    const { data: editorRelation, error: relationError } = await supabase
       .from("youtuber_editors")
       .select("id")
-      .eq("youtuber_id", projectId)
+      .eq("youtuber_id", user.id)
+      .eq("editor_id", editorId)
+      .eq("status", "active")
+      .maybeSingle()
+
+    if (relationError) {
+      throw relationError
+    }
+
+    if (!editorRelation) {
+      return { success: false, message: "Editor must be invited and accept invitation before assignment" }
+    }
+
+    // Check if project_editors table exists, if not use metadata approach
+    const { data: existingProjectEditors, error: checkTableError } = await supabase
+      .from("project_editors")
+      .select("id")
+      .eq("project_id", projectId)
       .eq("editor_id", editorId)
       .maybeSingle()
 
-    if (checkError) {
-      throw checkError
+    if (checkTableError && checkTableError.code !== "42P01") { // 42P01 = table does not exist
+      throw checkTableError
     }
 
-    // If the editor is already assigned, no need to do anything
-    if (existingAssignment) {
-      return { success: true, message: "Editor is already assigned to this project" }
-    }
+    if (checkTableError?.code === "42P01") {
+      // project_editors table doesn't exist, use metadata approach
+      const { data: currentProject, error: fetchError } = await supabase
+        .from("projects")
+        .select("metadata")
+        .eq("id", projectId)
+        .single()
 
-    // Assign the editor to the project
-    const { error: assignError } = await supabase
-      .from("youtuber_editors")
-      .insert({
-        youtuber_id: projectId,
-        editor_id: editorId,
-      })
+      if (fetchError) {
+        throw fetchError
+      }
 
-    if (assignError) {
-      throw assignError
+      const currentMetadata = currentProject.metadata || {}
+      const assignedEditors = currentMetadata.assigned_editors || []
+
+      if (assignedEditors.includes(editorId)) {
+        return { success: true, message: "Editor is already assigned to this project" }
+      }
+
+      const updatedEditors = [...assignedEditors, editorId]
+      const { error: updateError } = await supabase
+        .from("projects")
+        .update({
+          metadata: { ...currentMetadata, assigned_editors: updatedEditors }
+        })
+        .eq("id", projectId)
+
+      if (updateError) {
+        throw updateError
+      }
+    } else {
+      // project_editors table exists
+      if (existingProjectEditors) {
+        return { success: true, message: "Editor is already assigned to this project" }
+      }
+
+      const { error: insertError } = await supabase
+        .from("project_editors")
+        .insert({
+          project_id: projectId,
+          editor_id: editorId
+        })
+
+      if (insertError) {
+        throw insertError
+      }
     }
 
     return { success: true, message: "Editor assigned successfully" }
