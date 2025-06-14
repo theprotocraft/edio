@@ -18,17 +18,31 @@ import { Label } from "@/components/ui/label"
 import { ImageIcon, Upload } from "lucide-react"
 import { formatFileSize } from "@/lib/utils"
 import Image from "next/image"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 interface ProjectDetailsProps {
   project: any
-  userRole: "creator" | "editor"
+  userRole: "youtuber" | "editor"
   uploads?: any[]
 }
 
+interface YouTubeChannel {
+  id: string
+  channel_name: string
+  channel_thumbnail: string
+}
+
+interface UploadResult {
+  fileUrl: string;
+  fileName: string;
+  fileSize: number;
+}
+
 const projectDetailsSchema = z.object({
-  videoTitle: z.string().min(1, "Video title is required"),
-  description: z.string().min(1, "Video description is required"),
+  videoTitle: z.string().optional(),
+  description: z.string().optional(),
   hashtags: z.string().optional(),
+  youtubeChannel: z.string().optional(),
 })
 
 type ProjectDetailsFormValues = z.infer<typeof projectDetailsSchema>
@@ -39,10 +53,14 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
   const [uploadingThumbnail, setUploadingThumbnail] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null)
-  const { supabase, user } = useSupabase()
+  const [channels, setChannels] = useState<YouTubeChannel[]>([])
+  const [loadingChannels, setLoadingChannels] = useState(false)
+  const [publishing, setPublishing] = useState(false)
   const router = useRouter()
   const { toast } = useToast()
+  const { user } = useSupabase()
 
+  console.log("uploads", uploads)
   // Find thumbnail from uploads (if any)
   const thumbnailUpload = uploads.find(upload => upload.file_type === "thumbnail");
 
@@ -64,12 +82,41 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
     }
   }, [thumbnailUpload]);
 
+  // Fetch YouTube channels on component mount
+  useEffect(() => {
+    const fetchChannels = async () => {
+      setLoadingChannels(true)
+      try {
+        const response = await fetch('/api/youtube/channels')
+        if (!response.ok) {
+          throw new Error('Failed to fetch YouTube channels')
+        }
+        const data = await response.json()
+        setChannels(data.channels)
+      } catch (error) {
+        console.error('Error fetching YouTube channels:', error)
+        toast({
+          title: "Error",
+          description: "Failed to load YouTube channels",
+          variant: "destructive",
+        })
+      } finally {
+        setLoadingChannels(false)
+      }
+    }
+
+    if (userRole === "youtuber") {
+      fetchChannels()
+    }
+  }, [userRole, toast])
+
   const form = useForm<ProjectDetailsFormValues>({
     resolver: zodResolver(projectDetailsSchema),
     defaultValues: {
       videoTitle: project.video_title || "",
       description: project.description || "",
       hashtags: project.hashtags || "",
+      youtubeChannel: project.youtube_channel_id || "",
     },
   })
 
@@ -152,6 +199,7 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
         videoTitle: data.videoTitle,
         description: data.description,
         hashtags: data.hashtags,
+        youtube_channel_id: data.youtubeChannel,
       })
 
       toast({
@@ -159,7 +207,6 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
         description: "Your project details have been updated successfully.",
       })
 
-      // Refresh the page to show the updated details
       router.refresh()
     } catch (error: any) {
       toast({
@@ -169,6 +216,45 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
       })
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handlePublishToYouTube = async () => {
+    if (!project.youtube_channel_id) {
+      toast({
+        title: "YouTube Channel Required",
+        description: "Please select a YouTube channel before publishing.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setPublishing(true)
+    try {
+      const response = await fetch(`/api/projects/${project.id}/publish`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || 'Failed to publish to YouTube')
+      }
+
+      toast({
+        title: "Success",
+        description: "Video has been published to YouTube in private mode.",
+      })
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to publish to YouTube",
+        variant: "destructive",
+      })
+    } finally {
+      setPublishing(false)
     }
   }
 
@@ -208,6 +294,44 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
                   </FormItem>
                 )}
               />
+
+              {userRole === "youtuber" && (
+                <FormField
+                  control={form.control}
+                  name="youtubeChannel"
+                  render={({ field }) => (
+                    <FormItem className="space-y-2">
+                      <FormLabel>YouTube Channel</FormLabel>
+                      <Select
+                        value={field.value}
+                        onValueChange={field.onChange}
+                        disabled={loadingChannels}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select YouTube channel" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {channels.map((channel) => (
+                            <SelectItem key={channel.id} value={channel.id}>
+                              <div className="flex items-center">
+                                <img
+                                  src={channel.channel_thumbnail}
+                                  alt={channel.channel_name}
+                                  className="w-6 h-6 rounded-full mr-2"
+                                />
+                                <span>{channel.channel_name}</span>
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
 
               {/* Thumbnail Upload Section */}
               <div className="space-y-4 border p-4 rounded-lg">
@@ -346,7 +470,7 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
                 )}
               />
             </CardContent>
-            <CardFooter>
+            <CardFooter className="flex justify-between">
               <Button
                 type="submit"
                 disabled={loading}
@@ -354,6 +478,30 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
               >
                 {loading ? "Saving..." : "Save Changes"}
               </Button>
+
+              {userRole === "youtuber" && (
+                <Button
+                  type="button"
+                  onClick={handlePublishToYouTube}
+                  disabled={publishing || !project.youtube_channel_id}
+                  className="bg-[#FF0000] hover:bg-[#CC0000] text-white rounded-2xl shadow-md transition-transform active:scale-[0.98] flex items-center gap-2"
+                >
+                  {publishing ? (
+                    "Publishing..."
+                  ) : (
+                    <>
+                      <svg
+                        className="w-5 h-5"
+                        viewBox="0 0 24 24"
+                        fill="currentColor"
+                      >
+                        <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
+                      </svg>
+                      Publish to YouTube
+                    </>
+                  )}
+                </Button>
+              )}
             </CardFooter>
           </form>
         </Form>

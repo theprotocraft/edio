@@ -12,7 +12,7 @@ import { uploadVideoVersion } from "@/lib/api"
 
 interface VersionUploadProps {
   projectId: string
-  userRole: "creator" | "editor"
+  userRole: "youtuber" | "editor"
   disabled?: boolean
 }
 

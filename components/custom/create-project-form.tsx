@@ -14,6 +14,7 @@ import { z } from "zod"
 import { createProject, fetchEditors } from "@/lib/api"
 import DragDrop from "./drag-drop"
 import { Progress } from "@/components/ui/progress"
+import { createClient } from "@/app/lib/supabase-client"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 const projectSchema = z.object({
@@ -40,6 +41,7 @@ export default function CreateProjectForm() {
   const [loadingEditors, setLoadingEditors] = useState(true)
   const router = useRouter()
   const { toast } = useToast()
+  const supabase = createClient()
 
   const form = useForm<ProjectFormValues>({
     resolver: zodResolver(projectSchema),

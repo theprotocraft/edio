@@ -11,7 +11,7 @@ interface ProjectTabsProps {
   uploads: any[]
   versions: any[]
   messages: any[]
-  userRole: "creator" | "editor"
+  userRole: "youtuber" | "editor"
   userId: string
 }
 

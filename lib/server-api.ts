@@ -1,4 +1,4 @@
-import { createServerClient } from "@/lib/supabase-server"
+import { createServerClient } from "@/app/lib/supabase-server"
 
 // Server-side API functions
 
@@ -177,6 +177,20 @@ export async function fetchProjects() {
   }
 }
 
+interface Editor {
+  editor: {
+    id: string
+    name: string | null
+    email: string | null
+  }
+}
+
+interface ActiveEditor {
+  id: string
+  name: string | null
+  email: string | null
+}
+
 export async function fetchProjectDetails(id: string) {
   try {
     const supabase = await createServerClient()
@@ -190,7 +204,11 @@ export async function fetchProjectDetails(id: string) {
     // Step 1: Fetch basic project data
     const { data: basicProject, error: basicError } = await supabase
       .from("projects")
-      .select("*")
+      .select(`
+        *,
+        owner:users!projects_owner_id_fkey(id, name, email),
+        editor:users!editor_id(id, name, email)
+      `)
       .eq("id", id)
       .single()
       
@@ -302,10 +320,48 @@ export async function fetchProjectDetails(id: string) {
       versions: versions || [],
       messages: messages || [],
       userRole,
-      userId: user.id
+      userId: user.id,
+      activeEditors
     }
   } catch (error) {
     console.error("Error in fetchProjectDetails:", error)
     return { project: null }
+  }
+}
+
+export async function addProjectEditor(projectId: string, editorId: string) {
+  try {
+    const supabase = await createServerClient()
+    
+    // Check if user is project owner
+    const { data: project, error: projectError } = await supabase
+      .from("projects")
+      .select("owner_id")
+      .eq("id", projectId)
+      .single()
+      
+    if (projectError || !project) {
+      throw new Error("Project not found")
+    }
+    
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user || user.id !== project.owner_id) {
+      throw new Error("Unauthorized")
+    }
+    
+    // Start a transaction to update both tables
+    const { data, error } = await supabase.rpc('add_project_editor', {
+      p_project_id: projectId,
+      p_editor_id: editorId
+    })
+      
+    if (error) {
+      throw error
+    }
+    
+    return { success: true, data }
+  } catch (error) {
+    console.error("Error adding project editor:", error)
+    return { success: false, error }
   }
 } 

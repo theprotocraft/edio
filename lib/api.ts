@@ -145,13 +145,21 @@ export async function updateProject(id: string, {
   videoTitle, 
   description,
   hashtags,
-  finalVersionNumber
+  youtube_channel_id,
+  finalVersionNumber,
+  thumbnail
 }: { 
   title?: string; 
   videoTitle?: string; 
   description?: string;
   hashtags?: string;
   finalVersionNumber?: number;
+  youtube_channel_id?: string;
+  thumbnail?: {
+    url: string;
+    name: string;
+    size: number;
+  };
 }) {
   const supabase = createClient()
 
@@ -161,6 +169,12 @@ export async function updateProject(id: string, {
   if (description !== undefined) updateData.description = description
   if (hashtags !== undefined) updateData.hashtags = hashtags
   if (finalVersionNumber !== undefined) updateData.final_version_number = finalVersionNumber
+  if (youtube_channel_id !== undefined) updateData.youtube_channel_id = youtube_channel_id
+  if (thumbnail !== undefined) {
+    updateData.thumbnail_url = thumbnail.url
+    updateData.thumbnail_name = thumbnail.name
+    updateData.thumbnail_size = thumbnail.size
+  }
 
   const { error } = await supabase
     .from("projects")
@@ -457,6 +471,7 @@ export async function getPresignedViewUrl(fileUrl: string) {
     const filePath = url.pathname.startsWith('/') ? url.pathname.substring(1) : url.pathname;
     
     // Call the API to get a presigned URL for viewing
+    console.log("filePath", filePath)
     const response = await fetch("/api/uploads/get-presigned-url", {
       method: "POST",
       headers: {

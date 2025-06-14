@@ -40,7 +40,7 @@ interface VersionCardProps {
     owner_id: string
     final_version_number?: number
   }
-  userRole: "creator" | "editor"
+  userRole: "youtuber" | "editor"
   onPreview: () => void
   onFeedback?: () => void
   uploaderName?: string

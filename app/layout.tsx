@@ -23,7 +23,10 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-          <SupabaseProvider>{children}</SupabaseProvider>
+          <SupabaseProvider>
+            {children}
+            <Toaster />
+          </SupabaseProvider>
         </ThemeProvider>
         <Toaster />
       </body>
