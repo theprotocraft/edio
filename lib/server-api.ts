@@ -364,4 +364,73 @@ export async function addProjectEditor(projectId: string, editorId: string) {
     console.error("Error adding project editor:", error)
     return { success: false, error }
   }
+}
+
+export async function updateProject(
+  projectId: string,
+  updates: {
+    title?: string
+    videoTitle?: string
+    description?: string
+    hashtags?: string[]
+    youtube_channel_id?: string
+    publishing_status?: 'idle' | 'publishing' | 'completed' | 'failed'
+  }
+) {
+  try {
+    const supabase = await createServerClient()
+
+    // Check if user is project owner or editor
+    const { data: project, error: projectError } = await supabase
+      .from("projects")
+      .select("owner_id")
+      .eq("id", projectId)
+      .single()
+      
+    if (projectError || !project) {
+      throw new Error("Project not found")
+    }
+    
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      throw new Error("Unauthorized")
+    }
+
+    // Check if user is owner or editor
+    const { data: editorRelation } = await supabase
+      .from("project_editors")
+      .select("editor_id")
+      .eq("project_id", projectId)
+      .eq("editor_id", user.id)
+      .single()
+
+    if (user.id !== project.owner_id && !editorRelation) {
+      throw new Error("Unauthorized")
+    }
+
+    // Update project
+    const { data, error } = await supabase
+      .from("projects")
+      .update({
+        project_title: updates.title,
+        video_title: updates.videoTitle,
+        description: updates.description,
+        hashtags: updates.hashtags,
+        youtube_channel_id: updates.youtube_channel_id,
+        publishing_status: updates.publishing_status,
+        updated_at: new Date().toISOString()
+      })
+      .eq("id", projectId)
+      .select()
+      .single()
+
+    if (error) {
+      throw error
+    }
+
+    return { success: true, data }
+  } catch (error) {
+    console.error("Error updating project:", error)
+    return { success: false, error }
+  }
 } 

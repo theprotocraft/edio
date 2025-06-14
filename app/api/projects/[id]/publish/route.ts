@@ -11,23 +11,24 @@ export async function POST(
     const resolvedParams = await params
     const projectId = resolvedParams.id
     const supabase = await createServerClient()
-
     // Get current user
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      )
     }
 
-    // Get project details
+    // Get request body
+    const { videoTitle, description, hashtags, youtubeChannel, thumbnailUrl } = await request.json()
+
+    // Check if user is project owner
     const { data: project, error: projectError } = await supabase
       .from("projects")
-      .select(`
-        *,
-        owner:users!projects_owner_id_fkey(id, role)
-      `)
+      .select("owner_id, final_version_number")
       .eq("id", projectId)
       .single()
-
     if (projectError || !project) {
       return NextResponse.json(
         { error: "Project not found" },
@@ -35,114 +36,123 @@ export async function POST(
       )
     }
 
-    // Verify project ownership and role
-    if (project.owner.id !== user.id || project.owner.role !== "youtuber") {
+    if (user.id !== project.owner_id) {
       return NextResponse.json(
         { error: "Unauthorized" },
-        { status: 403 }
-      )
-    }
-
-    // Check if YouTube channel is set
-    if (!project.youtube_channel_id) {
-      return NextResponse.json(
-        { error: "YouTube channel not set for this project" },
-        { status: 400 }
+        { status: 401 }
       )
     }
 
     // Get the latest video version
-    const { data: latestVersion, error: versionError } = await supabase
+    const { data: videoVersion, error: versionError } = await supabase
       .from("video_versions")
-      .select("*")
+      .select("file_url")
       .eq("project_id", projectId)
-      .order("version_number", { ascending: false })
-      .limit(1)
+      .eq("version_number", project.final_version_number)
       .single()
 
-    if (versionError || !latestVersion) {
+    if (versionError || !videoVersion) {
       return NextResponse.json(
-        { error: "No video version found to publish" },
+        { error: "No video version found for publishing" },
         { status: 400 }
       )
     }
 
-    try {
-      // Get YouTube client
-      const youtube = await getYouTubeClient(user.id)
+    // Update project status to publishing
+    const { error: updateError } = await supabase
+      .from("projects")
+      .update({
+        publishing_status: 'publishing',
+        updated_at: new Date().toISOString()
+      })
+      .eq("id", projectId)
 
-      // Upload to YouTube
-      const uploadResult = await uploadVideoToYouTube({
+    if (updateError) {
+      console.error("Error updating project status:", updateError)
+      return NextResponse.json(
+        { error: "Failed to update project status" },
+        { status: 500 }
+      )
+    }
+
+    try {
+      // Get YouTube client using channel ID
+      const youtube = await getYouTubeClient(youtubeChannel)
+      if (!youtube) {
+        throw new Error("Failed to get YouTube client. Please ensure you have connected your YouTube account.")
+      }
+
+      // Try to refresh token if needed
+      // try {
+      //   await refreshYouTubeToken(youtubeChannel)
+      // } catch (refreshError) {
+      //   console.error("Error refreshing YouTube token:", refreshError)
+      //   throw new Error("Your YouTube session has expired. Please reconnect your YouTube account.")
+      // }
+
+      // Upload video to YouTube
+      const videoResponse = await uploadVideoToYouTube({
         youtube,
-        videoUrl: latestVersion.file_url,
-        title: project.video_title || project.project_title,
-        description: project.description || "",
-        channelId: project.youtube_channel_id,
-        privacyStatus: "private"
+        videoUrl: videoVersion.file_url,
+        title: videoTitle,
+        description: description,
+        channelId: youtubeChannel,
+        thumbnailUrl: thumbnailUrl,
+        tags: hashtags ? hashtags.split(" ").filter((tag: string) => tag.startsWith("#")) : []
       })
 
-      // Update project with YouTube video ID
-      await supabase
+      // Update project status to completed
+      const { error: completeError } = await supabase
         .from("projects")
         .update({
-          youtube_video_id: uploadResult.id,
-          status: "published"
+          publishing_status: 'completed',
+          youtube_video_id: videoResponse.id,
+          updated_at: new Date().toISOString()
         })
         .eq("id", projectId)
 
-      return NextResponse.json({ 
-        success: true,
-        message: "Video published to YouTube in private mode",
-        videoId: uploadResult.id
-      })
-    } catch (error: any) {
-      // If token expired, try to refresh and retry
-      if (error.message?.includes("token")) {
-        try {
-          console.log("Token expired, refreshing...")
-          await refreshYouTubeToken(user.id)
-          // Retry the upload with new token
-          const youtube = await getYouTubeClient(user.id)
-          
-          const uploadResult = await uploadVideoToYouTube({
-            youtube,
-            videoUrl: latestVersion.file_url,
-            title: project.video_title || project.project_title,
-            description: project.description || "",
-            channelId: project.youtube_channel_id,
-            privacyStatus: "private"
-          })
-
-          await supabase
-            .from("projects")
-            .update({
-              youtube_video_id: uploadResult.id,
-              status: "published"
-            })
-            .eq("id", projectId)
-
-          return NextResponse.json({ 
-            success: true,
-            message: "Video published to YouTube in private mode",
-            videoId: uploadResult.id
-          })
-        } catch (retryError: any) {
-          console.error("Error in retry upload:", retryError)
-          return NextResponse.json(
-            { error: "Failed to upload video to YouTube after token refresh" },
-            { status: 500 }
-          )
-        }
+      if (completeError) {
+        console.error("Error updating project status:", completeError)
+        return NextResponse.json(
+          { error: "Failed to update project status" },
+          { status: 500 }
+        )
       }
 
-      console.error("Error uploading to YouTube:", error)
+      return NextResponse.json({ success: true, videoId: videoResponse.id })
+    } catch (error: any) {
+      console.error("Error publishing to YouTube:", error)
+      // Update project status to failed
+      await supabase
+        .from("projects")
+        .update({
+          publishing_status: 'failed',
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", projectId)
+
+      // Return a more user-friendly error message
+      const errorMessage = error.message.includes("authentication") 
+        ? "Your YouTube session has expired. Please reconnect your YouTube account."
+        : error.message || "Failed to publish to YouTube"
+
       return NextResponse.json(
-        { error: error.message || "Failed to upload video to YouTube" },
+        { error: errorMessage },
         { status: 500 }
       )
     }
   } catch (error) {
     console.error("Error in publish route:", error)
+    // Update project status to failed
+    const supabase = await createServerClient()
+    await supabase
+      .from("projects")
+      .update({
+        publishing_status: 'failed',
+        updated_at: new Date().toISOString()
+      })
+      .eq("id", (await params).id)
+
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

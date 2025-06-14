@@ -92,54 +92,77 @@ export async function PATCH(
   try {
     const supabase = await createServerClient()
     
-    // Get authenticated user
-    const { data: { user }, error: userError } = await supabase.auth.getUser()
-    
-    if (userError || !user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    // Get current user
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      )
     }
 
     // Get request body
-    const {
-      title,
-      videoTitle,
-      description,
-      hashtags,
-      youtube_channel_id,
-      thumbnail
-    } = await request.json()
+    const updates = await request.json()
 
-    // Prepare update data
-    const updateData: any = {
-      project_title: title,
-      video_title: videoTitle,
-      description,
-      youtube_channel_id
+    // Check if user is project owner or editor
+    const { data: project, error: projectError } = await supabase
+      .from("projects")
+      .select("owner_id")
+      .eq("id", params.id)
+      .single()
+      
+    if (projectError || !project) {
+      return NextResponse.json(
+        { error: "Project not found" },
+        { status: 404 }
+      )
     }
 
-    // Add thumbnail fields if provided
-    if (thumbnail) {
-      updateData.thumbnail_url = thumbnail.url
-      updateData.thumbnail_name = thumbnail.name
-      updateData.thumbnail_size = thumbnail.size
+    // Check if user is owner or editor
+    const { data: editorRelation } = await supabase
+      .from("project_editors")
+      .select("editor_id")
+      .eq("project_id", params.id)
+      .eq("editor_id", user.id)
+      .single()
+
+    if (user.id !== project.owner_id && !editorRelation) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      )
     }
 
     // Update project
-    const { data: project, error: updateError } = await supabase
+    const { data, error } = await supabase
       .from("projects")
-      .update(updateData)
+      .update({
+        project_title: updates.title,
+        video_title: updates.videoTitle,
+        description: updates.description,
+        hashtags: updates.hashtags,
+        youtube_channel_id: updates.youtube_channel_id,
+        publishing_status: updates.publishing_status,
+        updated_at: new Date().toISOString()
+      })
       .eq("id", params.id)
       .select()
       .single()
 
-    if (updateError) {
-      console.error("Error updating project:", updateError)
-      return NextResponse.json({ error: "Failed to update project" }, { status: 500 })
+    if (error) {
+      console.error("Error updating project:", error)
+      return NextResponse.json(
+        { error: "Failed to update project" },
+        { status: 500 }
+      )
     }
 
-    return NextResponse.json(project)
+    return NextResponse.json(data)
   } catch (error) {
-    console.error("Error in PATCH /api/projects/[id]:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    console.error("Error in PATCH route:", error)
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    )
   }
 } 

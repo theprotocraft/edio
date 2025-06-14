@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { google } from 'googleapis'
 import { createServerClient } from "@/app/lib/supabase-server"
+import { encrypt } from "@/lib/encryption"
 
 const oauth2Client = new google.auth.OAuth2(
   process.env.NEXT_PUBLIC_YOUTUBE_CLIENT_ID,
@@ -40,7 +41,7 @@ export async function GET(request: Request) {
     const channel = channelResponse.data.items[0]
     const supabase = await createServerClient()
 
-    // Store channel info and tokens
+    // Store channel info and tokens (encrypted)
     const { error: channelError } = await supabase
       .from('youtube_channels')
       .upsert({
@@ -48,8 +49,8 @@ export async function GET(request: Request) {
         channel_id: channel.id,
         channel_name: channel.snippet?.title,
         channel_thumbnail: channel.snippet?.thumbnails?.default?.url,
-        access_token: tokens.access_token,
-        refresh_token: tokens.refresh_token,
+        access_token: encrypt(tokens.access_token),
+        refresh_token: encrypt(tokens.refresh_token),
         token_expires_at: new Date(Date.now() + (tokens.expiry_date || 7 * 24 * 60 * 60 * 1000)).toISOString(),
         updated_at: new Date().toISOString()
       }, {
