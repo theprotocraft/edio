@@ -102,8 +102,7 @@ export default function CreateProjectForm() {
   }
 
   return (
-    <div className="w-full max-w-6xl mx-auto">
-      <Card className="shadow-md">
+    <Card className="shadow-md">
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)}>
             <CardHeader>
@@ -260,6 +259,5 @@ export default function CreateProjectForm() {
         </form>
       </Form>
     </Card>
-    </div>
   )
 } 
