@@ -290,8 +290,7 @@ export function ProjectHeader({ project, userRole }: ProjectHeaderProps) {
   }
 
   // Check if there is an editor assigned to the project
-  console.log(project)
-  const hasAssignedEditor = project.editor !== null
+  const hasAssignedEditor = project.project_editors[0]?.editor !== null
 
   return (
     <div className="mb-6">
@@ -446,9 +445,9 @@ export function ProjectHeader({ project, userRole }: ProjectHeaderProps) {
           {hasAssignedEditor ? (
             <div className="flex items-center space-x-2">
               <Avatar className="h-6 w-6">
-                <AvatarFallback>{getInitials(project.editor?.name || "E")}</AvatarFallback>
+                <AvatarFallback>{getInitials(project.project_editors[0]?.editor?.name || "E")}</AvatarFallback>
               </Avatar>
-              <span>{project.editor?.name || project.editor?.email || "Unknown"}</span>
+              <span>{project.project_editors[0]?.editor?.name || project.project_editors[0]?.editor?.email || "Unknown"}</span>
             </div>
           ) : userRole === "youtuber" ? (
             <div className="flex items-center">

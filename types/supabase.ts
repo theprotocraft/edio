@@ -32,6 +32,8 @@ export type Database = {
           video_title: string | null
           description: string | null
           thumbnail_url: string | null
+          thumbnail_name: string | null
+          thumbnail_size: number | null
           status: "pending" | "in_review" | "needs_changes" | "approved"
           final_version_number: number | null
           created_at: string
@@ -44,6 +46,8 @@ export type Database = {
           video_title?: string | null
           description?: string | null
           thumbnail_url?: string | null
+          thumbnail_name?: string | null
+          thumbnail_size?: number | null
           status?: "pending" | "in_review" | "needs_changes" | "approved"
           final_version_number?: number | null
           created_at?: string
@@ -56,6 +60,8 @@ export type Database = {
           video_title?: string | null
           description?: string | null
           thumbnail_url?: string | null
+          thumbnail_name?: string | null
+          thumbnail_size?: number | null
           status?: "pending" | "in_review" | "needs_changes" | "approved"
           final_version_number?: number | null
           created_at?: string

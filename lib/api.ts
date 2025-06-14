@@ -146,7 +146,8 @@ export async function updateProject(id: string, {
   description,
   hashtags,
   youtube_channel_id,
-  finalVersionNumber
+  finalVersionNumber,
+  thumbnail
 }: { 
   title?: string; 
   videoTitle?: string; 
@@ -154,6 +155,11 @@ export async function updateProject(id: string, {
   hashtags?: string;
   finalVersionNumber?: number;
   youtube_channel_id?: string;
+  thumbnail?: {
+    url: string;
+    name: string;
+    size: number;
+  };
 }) {
   const supabase = createClient()
 
@@ -164,6 +170,11 @@ export async function updateProject(id: string, {
   if (hashtags !== undefined) updateData.hashtags = hashtags
   if (finalVersionNumber !== undefined) updateData.final_version_number = finalVersionNumber
   if (youtube_channel_id !== undefined) updateData.youtube_channel_id = youtube_channel_id
+  if (thumbnail !== undefined) {
+    updateData.thumbnail_url = thumbnail.url
+    updateData.thumbnail_name = thumbnail.name
+    updateData.thumbnail_size = thumbnail.size
+  }
 
   const { error } = await supabase
     .from("projects")

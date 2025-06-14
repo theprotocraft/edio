@@ -32,6 +32,12 @@ interface YouTubeChannel {
   channel_thumbnail: string
 }
 
+interface UploadResult {
+  fileUrl: string;
+  fileName: string;
+  fileSize: number;
+}
+
 const projectDetailsSchema = z.object({
   videoTitle: z.string().optional(),
   description: z.string().optional(),
@@ -54,6 +60,7 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
   const { toast } = useToast()
   const { user } = useSupabase()
 
+  console.log("uploads", uploads)
   // Find thumbnail from uploads (if any)
   const thumbnailUpload = uploads.find(upload => upload.file_type === "thumbnail");
 

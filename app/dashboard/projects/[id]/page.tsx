@@ -104,6 +104,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
           throw new Error(data.error || 'Failed to fetch project')
         }
         const result = await response.json()
+        console.log("result", result)
         setData(result)
       } catch (error: any) {
         console.error("Project page error:", error)
@@ -143,7 +144,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
         <EditorSelect 
           projectId={resolvedParams.id}
           activeEditors={data.activeEditors}
-          currentEditorId={data.project.editor_id}
+          currentEditorId={data.project_editors[0].editor.id}
         />
       )}
     </div>
