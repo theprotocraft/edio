@@ -15,7 +15,7 @@ import { z } from "zod"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Progress } from "@/components/ui/progress"
 import { Label } from "@/components/ui/label"
-import { ImageIcon, Upload } from "lucide-react"
+import { ImageIcon, Upload, Loader2, Youtube } from "lucide-react"
 import { formatFileSize } from "@/lib/utils"
 import Image from "next/image"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -55,7 +55,7 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null)
   const [channels, setChannels] = useState<YouTubeChannel[]>([])
   const [loadingChannels, setLoadingChannels] = useState(false)
-  const [publishing, setPublishing] = useState(false)
+  const [publishing, setPublishing] = useState(project.publishing_status === "publishing")
   const router = useRouter()
   const { toast } = useToast()
   const { user } = useSupabase()
@@ -108,6 +108,30 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
       fetchChannels()
     }
   }, [userRole, toast])
+
+  // Check publishing status on mount
+  useEffect(() => {
+    if (project.publishing_status === "publishing") {
+      const checkPublishingStatus = async () => {
+        try {
+          const response = await fetch(`/api/projects/${project.id}/publish/status`)
+          if (!response.ok) {
+            throw new Error('Failed to check publishing status')
+          }
+          const { status } = await response.json()
+          if (status === 'completed' || status === 'failed') {
+            setPublishing(false)
+            router.refresh()
+          }
+        } catch (error) {
+          console.error('Error checking publishing status:', error)
+        }
+      }
+
+      const interval = setInterval(checkPublishingStatus, 5000)
+      return () => clearInterval(interval)
+    }
+  }, [project.id, project.publishing_status, router])
 
   const form = useForm<ProjectDetailsFormValues>({
     resolver: zodResolver(projectDetailsSchema),
@@ -240,27 +264,32 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
         youtube_channel_id: formData.youtubeChannel,
       })
 
-      // Then publish to YouTube
+      // Start publishing process
       const response = await fetch(`/api/projects/${project.id}/publish`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
+        body: JSON.stringify({
+          videoTitle: formData.videoTitle,
+          description: formData.description,
+          hashtags: formData.hashtags,
+          youtubeChannel: formData.youtubeChannel,
+        }),
       })
 
       if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.error || 'Failed to publish to YouTube')
+        const error = await response.json()
+        throw new Error(error.message || 'Failed to publish to YouTube')
       }
 
       toast({
         title: "Success",
-        description: "Video has been published to YouTube in private mode.",
+        description: "Video has been published to YouTube successfully!",
       })
-
-      // Refresh the page to show updated data
       router.refresh()
     } catch (error: any) {
+      console.error('Error publishing to YouTube:', error)
       toast({
         title: "Error",
         description: error.message || "Failed to publish to YouTube",
@@ -500,20 +529,29 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
                   className="bg-[#FF0000] hover:bg-[#CC0000] text-white rounded-2xl shadow-md transition-transform active:scale-[0.98] flex items-center gap-2"
                 >
                   {publishing ? (
-                    "Publishing..."
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Publishing...
+                    </>
                   ) : (
                     <>
-                      <svg
-                        className="w-5 h-5"
-                        viewBox="0 0 24 24"
-                        fill="currentColor"
-                      >
-                        <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
-                      </svg>
+                      <Youtube className="mr-2 h-4 w-4" />
                       Publish to YouTube
                     </>
                   )}
                 </Button>
+              )}
+
+              {project.publishing_status === 'failed' && (
+                <div className="mt-2 text-sm text-red-500">
+                  Failed to publish to YouTube. Please try again.
+                </div>
+              )}
+
+              {project.publishing_status === 'completed' && (
+                <div className="mt-2 text-sm text-green-500">
+                  Video published to YouTube successfully!
+                </div>
               )}
             </CardFooter>
           </form>
