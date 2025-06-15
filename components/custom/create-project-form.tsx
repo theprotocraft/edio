@@ -16,13 +16,15 @@ import DragDrop from "./drag-drop"
 import { Progress } from "@/components/ui/progress"
 import { createClient } from "@/app/lib/supabase-client"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Badge } from "@/components/ui/badge"
+import { X } from "lucide-react"
 
 const projectSchema = z.object({
   projectTitle: z.string().min(1, "Project title is required"),
   videoTitle: z.string().optional(),
   description: z.string().optional(),
   file: z.instanceof(File, { message: "Video file is required" }),
-  selectedEditor: z.string().optional(),
+  selectedEditors: z.array(z.string()).optional(),
 })
 
 type ProjectFormValues = z.infer<typeof projectSchema>
@@ -38,6 +40,7 @@ export default function CreateProjectForm() {
   const [uploadProgress, setUploadProgress] = useState(0)
   const [editors, setEditors] = useState<Editor[]>([])
   const [loadingEditors, setLoadingEditors] = useState(true)
+  const [selectedEditors, setSelectedEditors] = useState<string[]>([])
   const router = useRouter()
   const { toast } = useToast()
   const supabase = createClient()
@@ -48,7 +51,7 @@ export default function CreateProjectForm() {
       projectTitle: "",
       videoTitle: "",
       description: "",
-      selectedEditor: "",
+      selectedEditors: [],
     },
   })
 
@@ -76,7 +79,7 @@ export default function CreateProjectForm() {
         videoTitle: data.videoTitle,
         description: data.description,
         file: data.file,
-        selectedEditors: data.selectedEditor ? [data.selectedEditor] : [],
+        selectedEditors: selectedEditors,
         onProgress: (progress: number) => {
           setUploadProgress(progress)
         },
@@ -177,38 +180,75 @@ export default function CreateProjectForm() {
             />
 
             {!loadingEditors && editors.length > 0 && (
-              <FormField
-                control={form.control}
-                name="selectedEditor"
-                render={({ field }) => (
-                  <FormItem className="space-y-2">
-                    <FormLabel>Select Editor (Optional)</FormLabel>
-                    <Select onValueChange={(value) => field.onChange(value === "none" ? "" : value)} defaultValue={field.value || "none"}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue>
-                            {field.value && field.value !== "none" ? (
-                              (() => {
-                                const selectedEditor = editors.find(editor => editor.id === field.value)
-                                return selectedEditor ? (selectedEditor.name || selectedEditor.email) : "Choose an editor"
-                              })()
-                            ) : "No editor selected"}
-                          </SelectValue>
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="none">No editor selected</SelectItem>
-                        {editors.map((editor) => (
+              <div className="space-y-2">
+                <FormLabel>Select Editors (Optional)</FormLabel>
+                
+                {/* Display selected editors */}
+                {selectedEditors.length > 0 && (
+                  <div className="flex flex-wrap gap-2 p-3 border rounded-lg bg-muted/20">
+                    {selectedEditors.map((editorId) => {
+                      const editor = editors.find(e => e.id === editorId)
+                      return (
+                        <div key={editorId} className="flex items-center gap-1 bg-white dark:bg-gray-800 border rounded-full px-3 py-1 shadow-sm">
+                          <span className="text-sm font-medium">{editor?.name || editor?.email || 'Unknown'}</span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-4 w-4 p-0 hover:bg-red-500 hover:text-white rounded-full"
+                            onClick={() => {
+                              const newSelected = selectedEditors.filter(id => id !== editorId)
+                              setSelectedEditors(newSelected)
+                              form.setValue('selectedEditors', newSelected)
+                            }}
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+                
+                {/* Editor selection dropdown */}
+                <Select
+                  value="" // Always keep it empty to show placeholder
+                  onValueChange={(value) => {
+                    if (value && value !== "none" && !selectedEditors.includes(value)) {
+                      const newSelected = [...selectedEditors, value]
+                      setSelectedEditors(newSelected)
+                      form.setValue('selectedEditors', newSelected)
+                    }
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Add an editor" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {editors
+                      .filter(editor => !selectedEditors.includes(editor.id))
+                      .length > 0 ? (
+                      editors
+                        .filter(editor => !selectedEditors.includes(editor.id))
+                        .map((editor) => (
                           <SelectItem key={editor.id} value={editor.id}>
                             {editor.name || editor.email}
                           </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
+                        ))
+                    ) : (
+                      <div className="px-2 py-1 text-sm text-muted-foreground">
+                        All editors have been selected
+                      </div>
+                    )}
+                  </SelectContent>
+                </Select>
+                
+                {selectedEditors.length === 0 && (
+                  <p className="text-sm text-muted-foreground">
+                    No editors selected. You can assign editors later from the project page.
+                  </p>
                 )}
-              />
+              </div>
             )}
 
             {!loadingEditors && editors.length === 0 && (

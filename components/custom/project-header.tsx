@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
-import { Clock, MoreHorizontal, Trash, CheckCircle, UserPlus, Loader2, Youtube } from "lucide-react"
+import { Clock, MoreHorizontal, Trash, CheckCircle, UserPlus, Loader2, Youtube, X } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { useSupabase } from "@/hooks/useUser"
 import {
@@ -25,7 +25,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { deleteProject, completeProject, fetchEditors, assignEditorToProject } from "@/lib/api"
+import { deleteProject, completeProject, fetchEditors } from "@/lib/api"
 import { getInitials } from "@/lib/utils"
 import {
   Dialog,
@@ -48,6 +48,14 @@ import { Label } from "@/components/ui/label"
 interface ProjectHeaderProps {
   project: any
   userRole: "youtuber" | "editor"
+}
+
+interface ProjectEditor {
+  editor: {
+    id: string
+    name?: string
+    email?: string
+  } | null
 }
 
 interface Editor {
@@ -91,6 +99,7 @@ export function ProjectHeader({ project, userRole }: ProjectHeaderProps) {
   const [loadingVersions, setLoadingVersions] = useState(false)
   const [selectedVersionId, setSelectedVersionId] = useState<string>("")
   const [selectedPrivacyStatus, setSelectedPrivacyStatus] = useState<string>("private")
+  const [localProjectEditors, setLocalProjectEditors] = useState<ProjectEditor[]>(project.project_editors || [])
   const { supabase } = useSupabase()
   const router = useRouter()
   const { toast } = useToast()
@@ -179,6 +188,11 @@ export function ProjectHeader({ project, userRole }: ProjectHeaderProps) {
     }
   }, [publishDialogOpen, project.id, toast])
 
+  // Update local state when project data changes
+  useEffect(() => {
+    setLocalProjectEditors(project.project_editors || [])
+  }, [project.project_editors])
+
   // Add debug logging for project data
   useEffect(() => {
     console.log('Project data:', project)
@@ -249,17 +263,36 @@ export function ProjectHeader({ project, userRole }: ProjectHeaderProps) {
     setAssigningEditor(true)
 
     try {
-      const result = await assignEditorToProject(project.id, selectedEditorId)
+      const response = await fetch(`/api/projects/${project.id}/editor`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ editorId: selectedEditorId }),
+      })
+
+      const result = await response.json()
       
-      if (result.success) {
+      if (response.ok) {
         toast({
           title: "Editor assigned",
           description: "The editor has been assigned to this project.",
         })
         setAssignDialogOpen(false)
+        setSelectedEditorId("")
+        
+        // Add the new editor to local state immediately
+        const newEditor = editors.find(e => e.id === selectedEditorId)
+        if (newEditor) {
+          setLocalProjectEditors(prev => [
+            ...prev,
+            { editor: { id: newEditor.id, name: newEditor.name, email: newEditor.email } }
+          ])
+        }
+        
         router.refresh()
       } else {
-        throw new Error(result.message)
+        throw new Error(result.error || "Failed to assign editor")
       }
     } catch (error: any) {
       toast({
@@ -269,6 +302,40 @@ export function ProjectHeader({ project, userRole }: ProjectHeaderProps) {
       })
     } finally {
       setAssigningEditor(false)
+    }
+  }
+
+  const handleRemoveEditor = async (editorId: string | undefined) => {
+    if (!editorId) return
+
+    try {
+      const response = await fetch(`/api/projects/${project.id}/editor?editorId=${editorId}`, {
+        method: 'DELETE',
+      })
+
+      const result = await response.json()
+      
+      if (response.ok) {
+        toast({
+          title: "Editor removed",
+          description: "The editor has been removed from this project.",
+        })
+        
+        // Remove the editor from local state immediately
+        setLocalProjectEditors(prev => 
+          prev.filter(pe => pe.editor?.id !== editorId)
+        )
+        
+        router.refresh()
+      } else {
+        throw new Error(result.error || "Failed to remove editor")
+      }
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to remove editor.",
+        variant: "destructive",
+      })
     }
   }
 
@@ -356,8 +423,9 @@ export function ProjectHeader({ project, userRole }: ProjectHeaderProps) {
     }
   }
 
-  // Check if there is an editor assigned to the project
-  const hasAssignedEditor = project.project_editors[0]?.editor !== null
+  // Check if there are editors assigned to the project
+  const assignedEditors = localProjectEditors?.filter(pe => pe.editor !== null) || []
+  const hasAssignedEditors = assignedEditors.length > 0
 
   const privacyOptions = [
     { value: "private", label: "Private", description: "Only you can view" },
@@ -384,19 +452,18 @@ export function ProjectHeader({ project, userRole }: ProjectHeaderProps) {
         <div className="flex items-center space-x-2">
           {userRole === "youtuber" && project.status !== "approved" && (
             <>
-              {!hasAssignedEditor && (
-                <Dialog open={assignDialogOpen} onOpenChange={setAssignDialogOpen}>
-                  <DialogTrigger asChild>
-                    <Button variant="outline" className="rounded-2xl">
-                      <UserPlus className="mr-2 h-4 w-4" />
-                      Assign Editor
-                    </Button>
-                  </DialogTrigger>
+              <Dialog open={assignDialogOpen} onOpenChange={setAssignDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" className="rounded-2xl">
+                    <UserPlus className="mr-2 h-4 w-4" />
+                    {hasAssignedEditors ? 'Add Editor' : 'Assign Editor'}
+                  </Button>
+                </DialogTrigger>
                   <DialogContent>
                     <DialogHeader>
-                      <DialogTitle>Assign Editor to Project</DialogTitle>
+                      <DialogTitle>{hasAssignedEditors ? 'Add Editor to Project' : 'Assign Editor to Project'}</DialogTitle>
                       <DialogDescription>
-                        Select an editor from your invited editors to assign to this project.
+                        Select an editor from your invited editors to {hasAssignedEditors ? 'add to' : 'assign to'} this project.
                       </DialogDescription>
                     </DialogHeader>
                     {loadingEditors ? (
@@ -416,17 +483,19 @@ export function ProjectHeader({ project, userRole }: ProjectHeaderProps) {
                           </SelectTrigger>
                           <SelectContent>
                             {editors.length > 0 ? (
-                              editors.map((editor) => (
-                                <SelectItem key={editor.id} value={editor.id}>
-                                  <div className="flex items-center">
-                                    <Avatar className="h-6 w-6 mr-2">
-                                      <AvatarImage src={editor.avatar_url || ""} alt={editor.name} />
-                                      <AvatarFallback>{getInitials(editor.name)}</AvatarFallback>
-                                    </Avatar>
-                                    <span>{editor.name || editor.email}</span>
-                                  </div>
-                                </SelectItem>
-                              ))
+                              editors
+                                .filter(editor => !assignedEditors.some(ae => ae.editor?.id === editor.id))
+                                .map((editor) => (
+                                  <SelectItem key={editor.id} value={editor.id}>
+                                    <div className="flex items-center">
+                                      <Avatar className="h-6 w-6 mr-2">
+                                        <AvatarImage src={editor.avatar_url || ""} alt={editor.name} />
+                                        <AvatarFallback>{getInitials(editor.name)}</AvatarFallback>
+                                      </Avatar>
+                                      <span>{editor.name || editor.email}</span>
+                                    </div>
+                                  </SelectItem>
+                                ))
                             ) : (
                               <div className="flex items-center justify-center py-2">
                                 <span className="text-sm text-muted-foreground">No editors available</span>
@@ -452,13 +521,12 @@ export function ProjectHeader({ project, userRole }: ProjectHeaderProps) {
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Assigning...
                           </>
                         ) : (
-                          "Assign Editor"
+                          hasAssignedEditors ? "Add Editor" : "Assign Editor"
                         )}
                       </Button>
                     </DialogFooter>
                   </DialogContent>
                 </Dialog>
-              )}
               <Button
                 variant="outline"
                 onClick={() => setCompleteDialogOpen(true)}
@@ -505,13 +573,27 @@ export function ProjectHeader({ project, userRole }: ProjectHeaderProps) {
         </div>
 
         <div className="flex items-center space-x-2">
-          <span className="text-sm font-medium">Editor:</span>
-          {hasAssignedEditor ? (
-            <div className="flex items-center space-x-2">
-              <Avatar className="h-6 w-6">
-                <AvatarFallback>{getInitials(project.project_editors[0]?.editor?.name || "E")}</AvatarFallback>
-              </Avatar>
-              <span>{project.project_editors[0]?.editor?.name || project.project_editors[0]?.editor?.email || "Unknown"}</span>
+          <span className="text-sm font-medium">{hasAssignedEditors && assignedEditors.length > 1 ? 'Editors:' : 'Editor:'}</span>
+          {hasAssignedEditors ? (
+            <div className="flex items-center space-x-2 flex-wrap">
+              {assignedEditors.map((projectEditor, index) => (
+                <div key={projectEditor.editor?.id || index} className="flex items-center space-x-1 bg-gray-100 dark:bg-gray-800 rounded-full px-2 py-1">
+                  <Avatar className="h-5 w-5">
+                    <AvatarFallback className="text-xs">{getInitials(projectEditor.editor?.name || "E")}</AvatarFallback>
+                  </Avatar>
+                  <span className="text-xs">{projectEditor.editor?.name || projectEditor.editor?.email || "Unknown"}</span>
+                  {userRole === "youtuber" && project.status !== "approved" && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-4 w-4 p-0 hover:bg-red-500 hover:text-white"
+                      onClick={() => handleRemoveEditor(projectEditor.editor?.id)}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  )}
+                </div>
+              ))}
             </div>
           ) : userRole === "youtuber" ? (
             <div className="flex items-center">
