@@ -38,7 +38,6 @@ export interface Project {
   project_title: string
   video_title: string
   description: string
-  hashtags: string[]
   youtube_channel_id: string
   created_at: string
   updated_at: string

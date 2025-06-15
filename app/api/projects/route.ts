@@ -124,7 +124,6 @@ export async function POST(request: Request) {
       projectTitle,
       videoTitle,
       description,
-      hashtags,
       fileUrl,
       fileName,
       fileSize,
@@ -147,7 +146,6 @@ export async function POST(request: Request) {
         project_title: projectTitle,
         video_title: videoTitle || null,
         description: description || null,
-        // hashtags: hashtags || null,
         owner_id: user.id,
         status: "pending"
       })

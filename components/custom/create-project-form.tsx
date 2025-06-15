@@ -21,7 +21,6 @@ const projectSchema = z.object({
   projectTitle: z.string().min(1, "Project title is required"),
   videoTitle: z.string().optional(),
   description: z.string().optional(),
-  hashtags: z.string().optional(),
   file: z.instanceof(File, { message: "Video file is required" }),
   selectedEditor: z.string().optional(),
 })
@@ -49,7 +48,6 @@ export default function CreateProjectForm() {
       projectTitle: "",
       videoTitle: "",
       description: "",
-      hashtags: "",
       selectedEditor: "",
     },
   })
@@ -77,7 +75,6 @@ export default function CreateProjectForm() {
         projectTitle: data.projectTitle,
         videoTitle: data.videoTitle,
         description: data.description,
-        hashtags: data.hashtags,
         file: data.file,
         selectedEditors: data.selectedEditor ? [data.selectedEditor] : [],
         onProgress: (progress: number) => {
@@ -150,20 +147,6 @@ export default function CreateProjectForm() {
                   <FormLabel>Description (Optional)</FormLabel>
                   <FormControl>
                     <Textarea placeholder="Enter video description" rows={4} {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="hashtags"
-              render={({ field }) => (
-                <FormItem className="space-y-2">
-                  <FormLabel>Hashtags (Optional)</FormLabel>
-                  <FormControl>
-                    <Input placeholder="#videoedit #youtube" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

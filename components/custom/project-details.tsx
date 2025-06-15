@@ -41,7 +41,6 @@ interface UploadResult {
 const projectDetailsSchema = z.object({
   videoTitle: z.string().optional(),
   description: z.string().optional(),
-  hashtags: z.string().optional(),
   youtubeChannel: z.string().optional(),
 })
 
@@ -138,7 +137,6 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
     defaultValues: {
       videoTitle: project.video_title || "",
       description: project.description || "",
-      hashtags: project.hashtags || "",
       youtubeChannel: project.youtube_channel_id || "",
     },
   })
@@ -221,7 +219,6 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
         title: project.project_title,
         videoTitle: data.videoTitle,
         description: data.description,
-        hashtags: data.hashtags,
         youtube_channel_id: data.youtubeChannel,
       })
 
@@ -260,7 +257,6 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
         title: project.project_title,
         videoTitle: formData.videoTitle,
         description: formData.description,
-        hashtags: formData.hashtags,
         youtube_channel_id: formData.youtubeChannel,
       })
 
@@ -273,7 +269,6 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
         body: JSON.stringify({
           videoTitle: formData.videoTitle,
           description: formData.description,
-          hashtags: formData.hashtags,
           youtubeChannel: formData.youtubeChannel,
           thumbnailUrl: thumbnailUrl,
         }),
@@ -495,23 +490,6 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
                   Recommended size: 1280×720 pixels (16:9 ratio) • Maximum size: 2MB • Formats: JPG, PNG
                 </p>
               </div>
-
-              <FormField
-                control={form.control}
-                name="hashtags"
-                render={({ field }) => (
-                  <FormItem className="space-y-2">
-                    <FormLabel>Hashtags (Optional)</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Enter hashtags separated by spaces" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                    <p className="text-xs text-muted-foreground">
-                      Example: #youtube #video #tutorial
-                    </p>
-                  </FormItem>
-                )}
-              />
             </CardContent>
             <CardFooter className="flex justify-between">
               <Button

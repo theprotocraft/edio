@@ -23,23 +23,21 @@ export async function fetchProject(id: string) {
   return project
 }
 
-export async function createProject({ 
-  projectTitle, 
-  videoTitle, 
+export async function createProject({
+  projectTitle,
+  videoTitle,
   description,
-  hashtags,
   file,
-  selectedEditors,
-  onProgress
-}: { 
-  projectTitle: string; 
+  selectedEditors = [],
+  onProgress,
+}: {
+  projectTitle: string;
   videoTitle?: string;
   description?: string;
-  hashtags?: string;
   file: File;
   selectedEditors?: string[];
   onProgress?: (progress: number) => void;
-}): Promise<string> {
+}) {
   try {
     // Step 1: Get a presigned URL for the video upload
     const presignResponse = await fetch("/api/uploads/initial", {
@@ -66,7 +64,7 @@ export async function createProject({
     await uploadFileWithProgress(uploadUrl, file, onProgress)
 
     // Step 3: Create the project record
-    const projectResponse = await fetch("/api/projects", {
+    const response = await fetch("/api/projects", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -75,7 +73,6 @@ export async function createProject({
         projectTitle,
         videoTitle,
         description,
-        hashtags,
         fileUrl,
         fileName: file.name,
         fileSize: file.size,
@@ -83,13 +80,13 @@ export async function createProject({
       }),
     })
 
-    if (!projectResponse.ok) {
-      const errorData = await projectResponse.json()
+    if (!response.ok) {
+      const errorData = await response.json()
       throw new Error(errorData.error || "Failed to create project")
     }
 
-    const { projectId } = await projectResponse.json()
-    return projectId
+    const result = await response.json()
+    return result
   } catch (error: any) {
     console.error("Error creating project:", error)
     throw new Error(error.message || "Failed to create project")
@@ -140,49 +137,32 @@ async function uploadFileWithProgress(
   })
 }
 
-export async function updateProject(id: string, { 
-  title, 
-  videoTitle, 
-  description,
-  hashtags,
-  youtube_channel_id,
-  finalVersionNumber,
-  thumbnail
-}: { 
-  title?: string; 
-  videoTitle?: string; 
-  description?: string;
-  hashtags?: string;
-  finalVersionNumber?: number;
-  youtube_channel_id?: string;
-  thumbnail?: {
-    url: string;
-    name: string;
-    size: number;
-  };
-}) {
-  const supabase = createClient()
-
-  const updateData: any = {}
-  if (title !== undefined) updateData.project_title = title
-  if (videoTitle !== undefined) updateData.video_title = videoTitle
-  if (description !== undefined) updateData.description = description
-  if (hashtags !== undefined) updateData.hashtags = hashtags
-  if (finalVersionNumber !== undefined) updateData.final_version_number = finalVersionNumber
-  if (youtube_channel_id !== undefined) updateData.youtube_channel_id = youtube_channel_id
-  if (thumbnail !== undefined) {
-    updateData.thumbnail_url = thumbnail.url
-    updateData.thumbnail_name = thumbnail.name
-    updateData.thumbnail_size = thumbnail.size
+export async function updateProject(
+  projectId: string,
+  updates: {
+    title?: string;
+    videoTitle?: string;
+    description?: string;
   }
+) {
+  try {
+    const response = await fetch(`/api/projects/${projectId}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(updates),
+    })
 
-  const { error } = await supabase
-    .from("projects")
-    .update(updateData)
-    .eq("id", id)
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.error || "Failed to update project")
+    }
 
-  if (error) {
-    throw error
+    return await response.json()
+  } catch (error: any) {
+    console.error("Error updating project:", error)
+    throw new Error(error.message || "Failed to update project")
   }
 }
 

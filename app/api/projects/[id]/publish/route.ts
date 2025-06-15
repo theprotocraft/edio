@@ -21,7 +21,7 @@ export async function POST(
     }
 
     // Get request body
-    const { videoTitle, description, hashtags, youtubeChannel, thumbnailUrl } = await request.json()
+    const { videoTitle, description, youtubeChannel, thumbnailUrl } = await request.json()
 
     // Check if user is project owner
     const { data: project, error: projectError } = await supabase
@@ -98,7 +98,7 @@ export async function POST(
         description: description,
         channelId: youtubeChannel,
         thumbnailUrl: thumbnailUrl,
-        tags: hashtags ? hashtags.split(" ").filter((tag: string) => tag.startsWith("#")) : []
+        tags: []
       })
 
       // Update project status to completed

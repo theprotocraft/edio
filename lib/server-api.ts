@@ -372,7 +372,6 @@ export async function updateProject(
     title?: string
     videoTitle?: string
     description?: string
-    hashtags?: string[]
     youtube_channel_id?: string
     publishing_status?: 'idle' | 'publishing' | 'completed' | 'failed'
   }
@@ -415,7 +414,6 @@ export async function updateProject(
         project_title: updates.title,
         video_title: updates.videoTitle,
         description: updates.description,
-        hashtags: updates.hashtags,
         youtube_channel_id: updates.youtube_channel_id,
         publishing_status: updates.publishing_status,
         updated_at: new Date().toISOString()

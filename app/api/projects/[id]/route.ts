@@ -140,7 +140,6 @@ export async function PATCH(
         project_title: updates.title,
         video_title: updates.videoTitle,
         description: updates.description,
-        hashtags: updates.hashtags,
         youtube_channel_id: updates.youtube_channel_id,
         publishing_status: updates.publishing_status,
         updated_at: new Date().toISOString()
