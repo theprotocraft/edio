@@ -9,7 +9,8 @@ interface Notification {
   type: string
   message: string
   created_at: string
-  invite_id?: string
+  metadata: any
+  read: boolean
 }
 
 interface DashboardNotificationsProps {

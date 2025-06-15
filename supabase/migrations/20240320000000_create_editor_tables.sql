@@ -231,6 +231,10 @@ CREATE POLICY "Users can read their own notifications" ON notifications
 CREATE POLICY "Users can update their own notifications" ON notifications
   FOR UPDATE USING (auth.uid() = user_id);
 
+-- Users can delete their own notifications
+CREATE POLICY "Users can delete their own notifications" ON notifications
+  FOR DELETE USING (auth.uid() = user_id);
+
 -- Create function to automatically update timestamps
 CREATE OR REPLACE FUNCTION update_modified_column()
 RETURNS TRIGGER AS $$

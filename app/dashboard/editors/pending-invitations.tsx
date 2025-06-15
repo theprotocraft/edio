@@ -150,7 +150,7 @@ export function PendingInvitations({ user }: PendingInvitationsProps) {
         .from("notifications")
         .update({
           read: true,
-          content: `You have ${accept ? "accepted" : "rejected"} the editor invitation`,
+          message: `You have ${accept ? "accepted" : "rejected"} the editor invitation`,
           metadata: {
             status: accept ? "accepted" : "rejected",
             invitation_id: invitationId
@@ -158,7 +158,7 @@ export function PendingInvitations({ user }: PendingInvitationsProps) {
         })
         .eq("user_id", user.id)  // Editor's notification
         .eq("type", "editor_invite")
-        .eq("metadata->invitation_id", invitationId)
+        .eq("metadata->>invitation_id", invitationId)
 
       if (updateNotificationError) {
         console.error("Error updating invitation notification:", updateNotificationError)
@@ -171,7 +171,7 @@ export function PendingInvitations({ user }: PendingInvitationsProps) {
         .insert({
           user_id: invitation.youtuber_id,
           type: "editor_response",
-          content: `${user.email} has ${accept ? "accepted" : "rejected"} your editor invitation`,
+          message: `${user.email} has ${accept ? "accepted" : "rejected"} your editor invitation`,
           metadata: { 
             editor_id: user.id,
             status: accept ? "accepted" : "rejected",
@@ -190,7 +190,7 @@ export function PendingInvitations({ user }: PendingInvitationsProps) {
         .from("notifications")
         .update({
           read: true,
-          content: `${user.email} has ${accept ? "accepted" : "rejected"} your editor invitation`,
+          message: `${user.email} has ${accept ? "accepted" : "rejected"} your editor invitation`,
           metadata: {
             editor_id: user.id,
             status: accept ? "accepted" : "rejected",
@@ -199,7 +199,7 @@ export function PendingInvitations({ user }: PendingInvitationsProps) {
         })
         .eq("user_id", invitation.youtuber_id)
         .eq("type", "editor_response")
-        .eq("metadata->invitation_id", invitationId)
+        .eq("metadata->>invitation_id", invitationId)
 
       if (updateResponseError) {
         console.error("Error updating response notification:", updateResponseError)

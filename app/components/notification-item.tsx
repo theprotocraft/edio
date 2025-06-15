@@ -5,7 +5,7 @@ import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import { useToast } from "@/hooks/use-toast"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { CheckCircle, XCircle } from "lucide-react"
+import { CheckCircle, XCircle, X } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import {
   Dialog,
@@ -41,6 +41,37 @@ export function NotificationItem({ notification, onActionComplete }: Notificatio
     setMounted(true)
   }, [])
 
+  const handleDismissNotification = async () => {
+    setLoading(true)
+    try {
+      const { error } = await supabase
+        .from("notifications")
+        .delete()
+        .eq("id", notification.id)
+
+      if (error) {
+        console.error("Error dismissing notification:", error)
+        throw error
+      }
+
+      toast({
+        title: "Notification dismissed",
+        description: "The notification has been removed.",
+      })
+
+      onActionComplete()
+    } catch (error: any) {
+      console.error("Error in handleDismissNotification:", error)
+      toast({
+        title: "Error",
+        description: error.message || "Failed to dismiss notification.",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const handleEditorInvite = async (accept: boolean) => {
     setLoading(true)
     try {
@@ -53,7 +84,6 @@ export function NotificationItem({ notification, onActionComplete }: Notificatio
         .from("youtuber_editors")
         .update({
           status: accept ? "active" : "rejected",
-          editor_id: accept ? notification.metadata.editor_id : null,
         })
         .eq("id", notification.metadata.invitation_id)
         .select("youtuber_id")
@@ -64,22 +94,24 @@ export function NotificationItem({ notification, onActionComplete }: Notificatio
         throw editorError
       }
 
-      // Update notification status
-      const { error: notificationError } = await supabase
+      // Update the original invitation notification for the editor
+      const { error: updateNotificationError } = await supabase
         .from("notifications")
         .update({
-          metadata: {
-            ...notification.metadata,
-            status: accept ? "accepted" : "rejected"
-          },
+          read: true,
           message: `You have ${accept ? "accepted" : "rejected"} the editor invitation`,
-          read: true
+          metadata: {
+            status: accept ? "accepted" : "rejected",
+            invitation_id: notification.metadata.invitation_id
+          }
         })
-        .eq("id", notification.id)
+        .eq("user_id", user.id)  // Editor's notification
+        .eq("type", "editor_invite")
+        .eq("metadata->>invitation_id", notification.metadata.invitation_id)
 
-      if (notificationError) {
-        console.error("Error updating notification:", notificationError)
-        throw notificationError
+      if (updateNotificationError) {
+        console.error("Error updating notification:", updateNotificationError)
+        throw updateNotificationError
       }
 
       // Create notification for the YouTuber
@@ -142,6 +174,7 @@ export function NotificationItem({ notification, onActionComplete }: Notificatio
   }
 
   const getActionButtons = () => {
+    // Only show accept/reject buttons for pending editor invites
     if (notification.type === "editor_invite" && 
         (!notification.metadata?.status || notification.metadata?.status === "pending")) {
       return (
@@ -179,7 +212,7 @@ export function NotificationItem({ notification, onActionComplete }: Notificatio
 
   return (
     <>
-      <div className="flex flex-col items-start p-4">
+      <div className="flex flex-col items-start p-4 border-b last:border-b-0">
         <div className="flex items-start justify-between w-full">
           <div className="flex-1">
             <p className="text-sm font-medium">{notification.message}</p>
@@ -193,7 +226,18 @@ export function NotificationItem({ notification, onActionComplete }: Notificatio
               }) : ''}
             </p>
           </div>
-          {getStatusBadge()}
+          <div className="flex items-center gap-2">
+            {getStatusBadge()}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleDismissNotification}
+              disabled={loading}
+              className="h-6 w-6 p-0 hover:bg-destructive/10 hover:text-destructive"
+            >
+              <X className="h-3 w-3" />
+            </Button>
+          </div>
         </div>
         {getActionButtons()}
       </div>
@@ -230,4 +274,4 @@ export function NotificationItem({ notification, onActionComplete }: Notificatio
       </Dialog>
     </>
   )
-} 
+}
