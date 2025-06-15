@@ -1,10 +1,11 @@
 import { google } from 'googleapis'
-import { createServerClient } from '@/app/lib/supabase-server'
+import { createServerClient } from '@/lib/supabase-server'
 import { generatePresignedViewUrl } from '@/lib/s3-service'
 import { Readable } from 'stream'
 import { encrypt, decrypt } from '@/lib/encryption'
 
-export async function getYouTubeClient(channelId: string) {
+// Legacy function for channel-based auth
+export async function getYouTubeClientByChannel(channelId: string) {
   const supabase = await createServerClient()
   
   // Get YouTube channel and tokens by channel ID
@@ -25,7 +26,6 @@ export async function getYouTubeClient(channelId: string) {
     throw new Error('No YouTube channel connected')
   }
 
-  console.log("channel", channel)
 
   // Create OAuth2 client
   const oauth2Client = new google.auth.OAuth2(
@@ -45,7 +45,7 @@ export async function getYouTubeClient(channelId: string) {
   
   if (tokenExpiresAt <= oneHourFromNow) {
     // Refresh the token if it's expired or about to expire
-    accessToken = await refreshYouTubeToken(channelId)
+    accessToken = await refreshYouTubeTokenByChannel(channelId)
   }
 
   // Set credentials on the OAuth2 client
@@ -64,7 +64,7 @@ export async function getYouTubeClient(channelId: string) {
   return youtube
 }
 
-export async function uploadVideoToYouTube({
+export async function uploadVideoToYouTubeByChannel({
   youtube,
   videoUrl,
   title,
@@ -83,6 +83,7 @@ export async function uploadVideoToYouTube({
   thumbnailUrl?: string | null
   tags?: string[]
 }) {
+    console.log("thumbnailUrl", thumbnailUrl)
   try {
     if (!videoUrl) {
       throw new Error('Video URL is required')
@@ -143,7 +144,6 @@ export async function uploadVideoToYouTube({
     })
 
     // If we have a thumbnail, upload it
-    console.log("thumbnailUrl", thumbnailUrl)
     if (thumbnailUrl) {
       try {
         // Get the thumbnail image
@@ -177,7 +177,7 @@ export async function uploadVideoToYouTube({
   }
 }
 
-export async function refreshYouTubeToken(channelId: string) {
+export async function refreshYouTubeTokenByChannel(channelId: string) {
   const supabase = await createServerClient()
   
   // Get channel data by channel ID

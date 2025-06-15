@@ -17,8 +17,6 @@ export async function GET(request: NextRequest) {
 
     // Exchange the code for a session
     const { data, error } = await supabase.auth.exchangeCodeForSession(code)
-    console.log("Auth exchange result:", { data, error })
-
     if (error || !data?.user) {
       console.error("Auth exchange error:", error)
       return NextResponse.redirect(new URL("/login?error=auth_exchange", request.url))
@@ -50,8 +48,6 @@ export async function GET(request: NextRequest) {
           })
           .select()
           .single()
-
-        console.log("User creation result:", { newUser, insertError })
 
         if (insertError) {
           console.error("Error creating user profile:", insertError)

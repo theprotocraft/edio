@@ -140,30 +140,27 @@ async function uploadFileWithProgress(
 export async function updateProject(
   projectId: string,
   updates: {
-    title?: string;
-    videoTitle?: string;
-    description?: string;
+    title?: string
+    videoTitle?: string
+    description?: string
+    youtube_channel_id?: string
+    publishing_status?: 'idle' | 'publishing' | 'completed' | 'failed'
   }
 ) {
-  try {
-    const response = await fetch(`/api/projects/${projectId}`, {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(updates),
-    })
+  const response = await fetch(`/api/projects/${projectId}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(updates),
+  })
 
-    if (!response.ok) {
-      const errorData = await response.json()
-      throw new Error(errorData.error || "Failed to update project")
-    }
-
-    return await response.json()
-  } catch (error: any) {
-    console.error("Error updating project:", error)
-    throw new Error(error.message || "Failed to update project")
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.message || 'Failed to update project')
   }
+
+  return response.json()
 }
 
 export async function deleteProject(id: string) {
@@ -441,6 +438,8 @@ export async function sendMessage({
 
 export async function getPresignedViewUrl(fileUrl: string) {
   try {
+    console.log("Getting presigned URL for:", fileUrl);
+    
     // Validate that fileUrl is a valid URL string
     if (!fileUrl || typeof fileUrl !== 'string') {
       throw new Error('Invalid file URL provided');
@@ -450,8 +449,9 @@ export async function getPresignedViewUrl(fileUrl: string) {
     const url = new URL(fileUrl);
     const filePath = url.pathname.startsWith('/') ? url.pathname.substring(1) : url.pathname;
     
+    console.log("Extracted file path:", filePath);
+    
     // Call the API to get a presigned URL for viewing
-    console.log("filePath", filePath)
     const response = await fetch("/api/uploads/get-presigned-url", {
       method: "POST",
       headers: {
@@ -460,12 +460,16 @@ export async function getPresignedViewUrl(fileUrl: string) {
       body: JSON.stringify({ filePath }),
     });
 
+    console.log("API response status:", response.status);
+
     if (!response.ok) {
       const errorData = await response.json();
+      console.error("API error response:", errorData);
       throw new Error(errorData.error || "Failed to get view URL");
     }
 
     const { presignedUrl } = await response.json();
+    console.log("Generated presigned URL:", presignedUrl);
     return presignedUrl;
   } catch (error: any) {
     console.error("Error getting presigned view URL:", error);

@@ -5,8 +5,6 @@ import type { Database } from "@/types/supabase"
 // Server-side Supabase client for Server Components
 export const createServerClient = async () => {
   try {
-    const cookieStore = await cookies()
-
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
       console.error("Missing Supabase environment variables")
       // Return a minimal client that won't throw errors but will return empty data
@@ -31,7 +29,11 @@ export const createServerClient = async () => {
       } as any
     }
 
-    return createServerComponentClient<Database>({ cookies: () => cookieStore })
+    const cookieStore = cookies()
+    
+    return createServerComponentClient<Database>({
+      cookies: () => cookieStore,
+    })
   } catch (error) {
     console.error("Error creating server client:", error)
     // Return a minimal client that won't throw errors

@@ -43,6 +43,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Label } from "@/components/ui/label"
 
 interface ProjectHeaderProps {
   project: any
@@ -62,10 +63,22 @@ interface YouTubeChannel {
   thumbnailUrl: string
 }
 
+interface VideoVersion {
+  id: string
+  version_number: number
+  file_url: string
+  created_at: string
+  notes?: string
+  uploader?: {
+    name: string
+  }
+}
+
 export function ProjectHeader({ project, userRole }: ProjectHeaderProps) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [completeDialogOpen, setCompleteDialogOpen] = useState(false)
   const [assignDialogOpen, setAssignDialogOpen] = useState(false)
+  const [publishDialogOpen, setPublishDialogOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [loadingEditors, setLoadingEditors] = useState(false)
   const [editors, setEditors] = useState<Editor[]>([])
@@ -74,6 +87,10 @@ export function ProjectHeader({ project, userRole }: ProjectHeaderProps) {
   const [channels, setChannels] = useState<YouTubeChannel[]>([])
   const [loadingChannels, setLoadingChannels] = useState(false)
   const [publishing, setPublishing] = useState(false)
+  const [videoVersions, setVideoVersions] = useState<VideoVersion[]>([])
+  const [loadingVersions, setLoadingVersions] = useState(false)
+  const [selectedVersionId, setSelectedVersionId] = useState<string>("")
+  const [selectedPrivacyStatus, setSelectedPrivacyStatus] = useState<string>("private")
   const { supabase } = useSupabase()
   const router = useRouter()
   const { toast } = useToast()
@@ -128,6 +145,39 @@ export function ProjectHeader({ project, userRole }: ProjectHeaderProps) {
 
     fetchChannels()
   }, [toast])
+
+  // Fetch video versions when publish dialog opens
+  useEffect(() => {
+    if (publishDialogOpen) {
+      const fetchVersions = async () => {
+        setLoadingVersions(true)
+        try {
+          const response = await fetch(`/api/projects/${project.id}/versions`)
+          if (!response.ok) {
+            throw new Error('Failed to fetch video versions')
+          }
+          const data = await response.json()
+          setVideoVersions(data.versions || [])
+          
+          // Auto-select the latest version
+          if (data.versions && data.versions.length > 0) {
+            setSelectedVersionId(data.versions[0].id)
+          }
+        } catch (error) {
+          console.error('Error fetching video versions:', error)
+          toast({
+            title: "Error",
+            description: "Failed to load video versions",
+            variant: "destructive",
+          })
+        } finally {
+          setLoadingVersions(false)
+        }
+      }
+
+      fetchVersions()
+    }
+  }, [publishDialogOpen, project.id, toast])
 
   // Add debug logging for project data
   useEffect(() => {
@@ -222,7 +272,7 @@ export function ProjectHeader({ project, userRole }: ProjectHeaderProps) {
     }
   }
 
-  const handlePublish = async () => {
+  const handlePublishToYouTube = async () => {
     if (!project.youtube_channel_id) {
       toast({
         title: "No channel selected",
@@ -232,10 +282,26 @@ export function ProjectHeader({ project, userRole }: ProjectHeaderProps) {
       return
     }
 
+    if (!selectedVersionId) {
+      toast({
+        title: "No version selected",
+        description: "Please select a video version to publish.",
+        variant: "destructive",
+      })
+      return
+    }
+
     setPublishing(true)
     try {
       const response = await fetch(`/api/projects/${project.id}/publish`, {
         method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          versionId: selectedVersionId,
+          privacyStatus: selectedPrivacyStatus,
+        }),
       })
 
       if (!response.ok) {
@@ -248,6 +314,7 @@ export function ProjectHeader({ project, userRole }: ProjectHeaderProps) {
         description: "Your video has been published to YouTube successfully.",
       })
 
+      setPublishDialogOpen(false)
       router.refresh()
     } catch (error: any) {
       toast({
@@ -291,6 +358,12 @@ export function ProjectHeader({ project, userRole }: ProjectHeaderProps) {
 
   // Check if there is an editor assigned to the project
   const hasAssignedEditor = project.project_editors[0]?.editor !== null
+
+  const privacyOptions = [
+    { value: "private", label: "Private", description: "Only you can view" },
+    { value: "unlisted", label: "Unlisted", description: "Anyone with the link can view" },
+    { value: "public", label: "Public", description: "Anyone can search for and view" },
+  ]
 
   return (
     <div className="mb-6">
@@ -450,23 +523,144 @@ export function ProjectHeader({ project, userRole }: ProjectHeaderProps) {
         </div>
 
         {userRole === "youtuber" && project.status === "approved" && (
-          <Button
-            onClick={handlePublish}
-            disabled={publishing || !project.youtube_channel_id}
-            className="bg-red-600 hover:bg-red-700 text-white"
-          >
-            {publishing ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Publishing...
-              </>
-            ) : (
-              <>
+          <Dialog open={publishDialogOpen} onOpenChange={setPublishDialogOpen}>
+            <DialogTrigger asChild>
+              <Button
+                disabled={!project.youtube_channel_id}
+                className="bg-red-600 hover:bg-red-700 text-white rounded-2xl shadow-md transition-transform active:scale-[0.98]"
+              >
                 <Youtube className="mr-2 h-4 w-4" />
                 Publish to YouTube
-              </>
-            )}
-          </Button>
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Publish to YouTube</DialogTitle>
+                <DialogDescription>
+                  Select the video version and privacy settings for your YouTube upload.
+                </DialogDescription>
+              </DialogHeader>
+              
+              <div className="space-y-4 py-4">
+                {/* Video Version Selection */}
+                <div className="space-y-2">
+                  <Label htmlFor="version-select">Video Version</Label>
+                  {loadingVersions ? (
+                    <div className="flex items-center justify-center py-4">
+                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                      <span className="ml-2 text-sm">Loading versions...</span>
+                    </div>
+                  ) : (
+                    <Select
+                      value={selectedVersionId}
+                      onValueChange={setSelectedVersionId}
+                      disabled={loadingVersions}
+                    >
+                      <SelectTrigger>
+                        <SelectValue>
+                          {selectedVersionId ? (
+                            (() => {
+                              const selectedVersion = videoVersions.find(v => v.id === selectedVersionId)
+                              return selectedVersion ? (
+                                <div className="flex flex-col items-start text-left">
+                                  <span>Version {selectedVersion.version_number}</span>
+                                  <span className="text-xs text-muted-foreground">
+                                    {new Date(selectedVersion.created_at).toLocaleDateString()} 
+                                    {selectedVersion.uploader?.name && ` • by ${selectedVersion.uploader.name}`}
+                                    {selectedVersion.notes && ` • ${selectedVersion.notes}`}
+                                  </span>
+                                </div>
+                              ) : "Select a video version"
+                            })()
+                          ) : "Select a video version"}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {videoVersions.map((version) => (
+                          <SelectItem key={version.id} value={version.id}>
+                            <div className="flex flex-col">
+                              <span>Version {version.version_number}</span>
+                              <span className="text-xs text-muted-foreground">
+                                {new Date(version.created_at).toLocaleDateString()} 
+                                {version.uploader?.name && ` • by ${version.uploader.name}`}
+                                {version.notes && ` • ${version.notes}`}
+                              </span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+
+                {/* Privacy Settings */}
+                <div className="space-y-2">
+                  <Label htmlFor="privacy-select">Privacy Setting</Label>
+                  <Select
+                    value={selectedPrivacyStatus}
+                    onValueChange={setSelectedPrivacyStatus}
+                  >
+                    <SelectTrigger>
+                      <SelectValue>
+                        {selectedPrivacyStatus ? (
+                          (() => {
+                            const selectedOption = privacyOptions.find(option => option.value === selectedPrivacyStatus)
+                            return selectedOption ? (
+                              <div className="flex flex-col items-start text-left">
+                                <span>{selectedOption.label}</span>
+                                <span className="text-xs text-muted-foreground">
+                                  {selectedOption.description}
+                                </span>
+                              </div>
+                            ) : "Select privacy setting"
+                          })()
+                        ) : "Select privacy setting"}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {privacyOptions.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          <div className="flex flex-col">
+                            <span>{option.label}</span>
+                            <span className="text-xs text-muted-foreground">
+                              {option.description}
+                            </span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => setPublishDialogOpen(false)}
+                  disabled={publishing}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handlePublishToYouTube}
+                  disabled={publishing || !selectedVersionId || loadingVersions}
+                  className="bg-red-600 hover:bg-red-700 text-white"
+                >
+                  {publishing ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Publishing...
+                    </>
+                  ) : (
+                    <>
+                      <Youtube className="mr-2 h-4 w-4" />
+                      Confirm & Publish
+                    </>
+                  )}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         )}
       </div>
 

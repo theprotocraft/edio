@@ -2,14 +2,104 @@ import { NextRequest, NextResponse } from "next/server"
 import { createServerClient } from "@/lib/supabase-server"
 import { generateVersionUploadUrl } from "@/lib/s3-service"
 
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const resolvedParams = await params
+    const projectId = resolvedParams.id
+
+    const supabase = await createServerClient()
+
+    // Get the current user
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
+    if (userError || !user) {
+      return NextResponse.json(
+        { error: "Authentication required" },
+        { status: 401 }
+      )
+    }
+
+    // Check if user has access to this project
+    const { data: project, error: projectError } = await supabase
+      .from("projects")
+      .select("id, owner_id")
+      .eq("id", projectId)
+      .single()
+
+    if (projectError || !project) {
+      return NextResponse.json(
+        { error: "Project not found" },
+        { status: 404 }
+      )
+    }
+
+    // Check if user is the owner or an assigned editor
+    const isOwner = project.owner_id === user.id
+    let isEditor = false
+
+    if (!isOwner) {
+      const { data: editorRelation } = await supabase
+        .from("youtuber_editors")
+        .select("id")
+        .eq("youtuber_id", project.owner_id)
+        .eq("editor_id", user.id)
+        .eq("status", "active")
+        .single()
+
+      isEditor = !!editorRelation
+    }
+
+    if (!isOwner && !isEditor) {
+      return NextResponse.json(
+        { error: "Access denied" },
+        { status: 403 }
+      )
+    }
+
+    // Fetch video versions for this project
+    const { data: versions, error: versionsError } = await supabase
+      .from("video_versions")
+      .select(`
+        id,
+        version_number,
+        file_url,
+        notes,
+        created_at,
+        uploader:users(id, name, email)
+      `)
+      .eq("project_id", projectId)
+      .order("version_number", { ascending: false })
+
+    if (versionsError) {
+      console.error("Error fetching versions:", versionsError)
+      return NextResponse.json(
+        { error: "Failed to fetch video versions" },
+        { status: 500 }
+      )
+    }
+
+    return NextResponse.json({
+      versions: versions || []
+    })
+  } catch (error) {
+    console.error("Error in versions GET API:", error)
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    )
+  }
+}
+
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { fileName, contentType, fileSize, notes } = await request.json()
-    const { id } = await params
-    const projectId = id
+    const resolvedParams = await params
+    const projectId = resolvedParams.id
 
     if (!fileName || !contentType || !fileSize || !projectId) {
       return NextResponse.json(

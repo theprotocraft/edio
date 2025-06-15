@@ -186,7 +186,14 @@ export default function CreateProjectForm() {
                     <Select onValueChange={(value) => field.onChange(value === "none" ? "" : value)} defaultValue={field.value || "none"}>
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder="Choose an editor" />
+                          <SelectValue>
+                            {field.value && field.value !== "none" ? (
+                              (() => {
+                                const selectedEditor = editors.find(editor => editor.id === field.value)
+                                return selectedEditor ? (selectedEditor.name || selectedEditor.email) : "Choose an editor"
+                              })()
+                            ) : "No editor selected"}
+                          </SelectValue>
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>

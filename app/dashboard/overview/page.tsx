@@ -10,6 +10,13 @@ import { Notifications } from "@/app/components/notifications"
 import { NotificationActions } from "@/app/components/notification-actions"
 import { NotificationsList } from "@/app/components/notifications-list"
 
+interface Project {
+  id: string
+  project_title: string
+  status: string
+  updated_at: string
+}
+
 export default async function OverviewPage() {
   const supabase = await createServerClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -25,11 +32,13 @@ export default async function OverviewPage() {
       <div className="flex flex-col gap-4">
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-          <Link href="/dashboard/projects/new">
-            <Button className="rounded-2xl shadow-md transition-transform active:scale-[0.98]">
-              <Plus className="mr-2 h-4 w-4" /> New Project
-            </Button>
-          </Link>
+          {isCreator && (
+            <Link href="/dashboard/projects/new">
+              <Button className="rounded-2xl shadow-md transition-transform active:scale-[0.98]">
+                <Plus className="mr-2 h-4 w-4" /> New Project
+              </Button>
+            </Link>
+          )}
         </div>
 
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
@@ -96,12 +105,16 @@ export default async function OverviewPage() {
                 </div>
               ) : (
                 <div className="flex flex-col items-center justify-center h-40 text-center">
-                  <p className="text-muted-foreground mb-4">No projects yet</p>
-                  <Link href="/dashboard/projects/new">
-                    <Button className="rounded-2xl shadow-md transition-transform active:scale-[0.98]">
-                      <Plus className="mr-2 h-4 w-4" /> Create Project
-                    </Button>
-                  </Link>
+                  <p className="text-muted-foreground mb-4">
+                    {isCreator ? "No projects yet" : "No projects assigned yet"}
+                  </p>
+                  {isCreator && (
+                    <Link href="/dashboard/projects/new">
+                      <Button className="rounded-2xl shadow-md transition-transform active:scale-[0.98]">
+                        <Plus className="mr-2 h-4 w-4" /> Create Project
+                      </Button>
+                    </Link>
+                  )}
                 </div>
               )}
               {projects && projects.length > 0 && (
