@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useRef, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -11,23 +10,89 @@ import { useToast } from "@/hooks/use-toast"
 import { Send } from "lucide-react"
 import { getInitials } from "@/lib/utils"
 import { sendMessage } from "@/lib/api"
+import { useSupabase } from "@/hooks/useUser"
+import { Message } from "@/types"
 
-interface ProjectChatProps {
-  project: any
-  messages: any[]
+interface ChatFeedProps {
+  projectId: string
+  initialMessages: Message[]
   userId: string
 }
 
-export function ProjectChat({ project, messages, userId }: ProjectChatProps) {
+export function ChatFeed({ projectId, initialMessages, userId }: ChatFeedProps) {
+  const [msgs, setMsgs] = useState<Message[]>(initialMessages)
   const [newMessage, setNewMessage] = useState("")
   const [sending, setSending] = useState(false)
   const router = useRouter()
   const { toast } = useToast()
+  const { supabase } = useSupabase()
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
+  // Auto-scroll to bottom when messages change
   useEffect(() => {
     scrollToBottom()
-  }, [messages])
+  }, [msgs])
+
+  // Set up Supabase Realtime subscription
+  useEffect(() => {
+    if (!supabase) return
+
+    const channel = supabase
+      .channel(`messages:${projectId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+          filter: `project_id=eq.${projectId}`
+        },
+        async (payload) => {
+          const newMessage = payload.new as Message
+          
+          // Fetch complete message data with sender info if missing
+          if (!newMessage.sender && supabase) {
+            try {
+              const { data: fullMessage } = await supabase
+                .from("messages")
+                .select(`
+                  *,
+                  sender:users(id, name, email, avatar_url)
+                `)
+                .eq("id", newMessage.id)
+                .single()
+              
+              if (fullMessage) {
+                setMsgs(prev => {
+                  // Avoid duplicates
+                  if (prev.find(msg => msg.id === fullMessage.id)) {
+                    return prev
+                  }
+                  return [...prev, fullMessage as Message]
+                })
+                return
+              }
+            } catch (error) {
+              console.error("Error fetching full message data:", error)
+            }
+          }
+          
+          // Fallback to basic message if sender fetch fails
+          setMsgs(prev => {
+            // Avoid duplicates
+            if (prev.find(msg => msg.id === newMessage.id)) {
+              return prev
+            }
+            return [...prev, newMessage]
+          })
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [supabase, projectId])
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -44,12 +109,13 @@ export function ProjectChat({ project, messages, userId }: ProjectChatProps) {
 
     try {
       await sendMessage({
-        projectId: project.id,
+        projectId,
         content: newMessage,
       })
 
       setNewMessage("")
-      router.refresh()
+      // Note: The new message will appear via the realtime subscription
+      // No need to manually add it to the state
     } catch (error: any) {
       toast({
         title: "Error",
@@ -67,9 +133,9 @@ export function ProjectChat({ project, messages, userId }: ProjectChatProps) {
   }
 
   const groupMessagesByDate = () => {
-    const groups: { [key: string]: any[] } = {}
+    const groups: { [key: string]: Message[] } = {}
 
-    messages.forEach((message) => {
+    msgs.forEach((message) => {
       const date = new Date(message.created_at).toLocaleDateString()
       if (!groups[date]) {
         groups[date] = []

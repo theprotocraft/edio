@@ -3,14 +3,15 @@
 import { useState } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { VideoVersions } from "@/components/custom/video-versions"
-import { ProjectChat } from "@/components/custom/project-chat"
+import { ChatFeed } from "@/components/custom/ChatFeed"
 import { ProjectDetails } from "@/components/custom/project-details"
+import { Message } from "@/types"
 
 interface ProjectTabsProps {
   project: any
   uploads: any[]
   versions: any[]
-  messages: any[]
+  messages: Message[]
   userRole: "youtuber" | "editor"
   userId: string
 }
@@ -32,7 +33,7 @@ export function ProjectTabs({ project, uploads, versions, messages, userRole, us
         <VideoVersions project={project} versions={versions} userRole={userRole} />
       </TabsContent>
       <TabsContent value="chat" className="mt-6">
-        <ProjectChat project={project} messages={messages} userId={userId} />
+        <ChatFeed projectId={project.id} initialMessages={messages} userId={userId} />
       </TabsContent>
     </Tabs>
   )

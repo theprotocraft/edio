@@ -306,7 +306,7 @@ export async function fetchProjectDetails(id: string) {
       .from("messages")
       .select(`
         *,
-        sender:users(id, name, avatar_url)
+        sender:users(id, name, email, avatar_url)
       `)
       .eq("project_id", id)
       .order("created_at", { ascending: true })
@@ -329,6 +329,31 @@ export async function fetchProjectDetails(id: string) {
   } catch (error) {
     console.error("Error in fetchProjectDetails:", error)
     return { project: null }
+  }
+}
+
+export async function fetchMessages(projectId: string) {
+  try {
+    const supabase = createServerClient()
+
+    const { data: messages, error: messagesError } = await supabase
+      .from("messages")
+      .select(`
+        *,
+        sender:users(id, name, email, avatar_url)
+      `)
+      .eq("project_id", projectId)
+      .order("created_at", { ascending: true })
+
+    if (messagesError) {
+      console.error("Error fetching messages:", messagesError)
+      return []
+    }
+
+    return messages || []
+  } catch (error) {
+    console.error("Error in fetchMessages:", error)
+    return []
   }
 }
 
