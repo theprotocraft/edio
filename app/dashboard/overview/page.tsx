@@ -7,7 +7,6 @@ import { redirect } from "next/navigation"
 import { ProjectCard } from "@/components/custom/project-card"
 import { createServerClient } from "@/lib/supabase-server"
 import { Notifications } from "@/app/components/notifications"
-import { NotificationActions } from "@/app/components/notification-actions"
 import { NotificationsList } from "@/app/components/notifications-list"
 
 interface Project {
