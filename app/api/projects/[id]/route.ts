@@ -8,7 +8,7 @@ export async function GET(
   try {
     const resolvedParams = await params
     const projectId = resolvedParams.id
-    const supabase = await createServerClient()
+    const supabase = createServerClient()
 
     // Get project details
     const { data: project, error: projectError } = await supabase
@@ -90,7 +90,7 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
-    const supabase = await createServerClient()
+    const supabase = createServerClient()
     
     // Get current user
     const { data: { user } } = await supabase.auth.getUser()

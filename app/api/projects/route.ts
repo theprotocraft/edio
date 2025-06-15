@@ -25,30 +25,44 @@ export async function GET(request: Request) {
     
     const isCreator = userData.role === "youtuber"
     
-    // Fetch projects based on user role
-    let projectsQuery = supabase
-      .from("projects")
-      .select(`
-        id,
-        project_title,
-        description,
-        status,
-        created_at,
-        updated_at,
-        owner_id,
-        users!projects_owner_id_fkey(name, avatar_url)
-      `)
-      .order("updated_at", { ascending: false })
+    let allProjects = []
     
-    // If user is an editor, only show projects they're assigned to
-    if (!isCreator) {
-      const { data: editorProjects } = await supabase
+    if (isCreator) {
+      // If user is a creator, show only their projects
+      const { data: ownedProjects, error: ownedError } = await supabase
+        .from("projects")
+        .select(`
+          id,
+          project_title,
+          description,
+          status,
+          created_at,
+          updated_at,
+          owner_id,
+          users!projects_owner_id_fkey(name, avatar_url)
+        `)
+        .eq("owner_id", user.id)
+        .order("updated_at", { ascending: false })
+      
+      if (ownedError) {
+        console.error("Error fetching owned projects:", ownedError)
+        return NextResponse.json({ error: "Failed to fetch projects" }, { status: 500 })
+      }
+      
+      allProjects = ownedProjects || []
+    } else {
+      // If user is an editor, show projects they're assigned to
+      const { data: editorAssignments, error: assignmentError } = await supabase
         .from("project_editors")
         .select("project_id")
         .eq("editor_id", user.id)
-        .eq("status", "accepted")
       
-      const projectIds = editorProjects?.map(ep => ep.project_id) || []
+      if (assignmentError) {
+        console.error("Error fetching editor assignments:", assignmentError)
+        return NextResponse.json({ error: "Failed to fetch assignments" }, { status: 500 })
+      }
+      
+      const projectIds = editorAssignments?.map(ea => ea.project_id) || []
       
       if (projectIds.length === 0) {
         return NextResponse.json({ 
@@ -58,21 +72,31 @@ export async function GET(request: Request) {
         })
       }
       
-      projectsQuery = projectsQuery.in("id", projectIds)
-    } else {
-      // If user is a creator, show only their projects
-      projectsQuery = projectsQuery.eq("owner_id", user.id)
-    }
-    
-    const { data: projects, error: projectsError } = await projectsQuery
-    
-    if (projectsError) {
-      console.error("Error fetching projects:", projectsError)
-      return NextResponse.json({ error: "Failed to fetch projects" }, { status: 500 })
+      const { data: assignedProjects, error: projectsError } = await supabase
+        .from("projects")
+        .select(`
+          id,
+          project_title,
+          description,
+          status,
+          created_at,
+          updated_at,
+          owner_id,
+          users!projects_owner_id_fkey(name, avatar_url)
+        `)
+        .in("id", projectIds)
+        .order("updated_at", { ascending: false })
+      
+      if (projectsError) {
+        console.error("Error fetching assigned projects:", projectsError)
+        return NextResponse.json({ error: "Failed to fetch projects" }, { status: 500 })
+      }
+      
+      allProjects = assignedProjects || []
     }
     
     // Transform projects to match expected format
-    const transformedProjects = projects?.map(project => ({
+    const transformedProjects = allProjects.map(project => ({
       id: project.id,
       title: project.project_title,
       description: project.description,
@@ -80,7 +104,7 @@ export async function GET(request: Request) {
       created_at: project.created_at,
       updated_at: project.updated_at,
       owner: project.users
-    })) || []
+    }))
     
     return NextResponse.json({ 
       user, 

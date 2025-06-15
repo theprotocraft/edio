@@ -4,7 +4,7 @@ import { createServerClient } from "@/app/lib/supabase-server"
 
 export async function fetchDashboardData() {
   try {
-    const supabase = await createServerClient()
+    const supabase = createServerClient()
 
     const { data: { user } } = await supabase.auth.getUser()
 
@@ -36,38 +36,37 @@ export async function fetchDashboardData() {
       console.error("Error fetching owned projects:", ownedError)
     }
 
-    // Fetch projects where user is an editor
-    const { data: editorRelations, error: editorError } = await supabase
-      .from("youtuber_editors")
-      .select("youtuber_id")
+    // Fetch projects where user is assigned as an editor
+    const { data: editorAssignments, error: editorError } = await supabase
+      .from("project_editors")
+      .select("project_id")
       .eq("editor_id", user.id)
-      .eq("status", "active")
       
     if (editorError) {
-      console.error("Error fetching editor relations:", editorError)
+      console.error("Error fetching editor assignments:", editorError)
     }
 
-    // If user is an editor, fetch those project details
-    let editedProjectsList = []
-    if (editorRelations && editorRelations.length > 0) {
-      const youtuberIds = editorRelations.map((er: { youtuber_id: string }) => er.youtuber_id)
+    // If user is assigned to projects as an editor, fetch those project details
+    let assignedProjectsList = []
+    if (editorAssignments && editorAssignments.length > 0) {
+      const projectIds = editorAssignments.map((ea: { project_id: string }) => ea.project_id)
       
       const { data: projects, error } = await supabase
         .from("projects")
         .select("*")
-        .in("owner_id", youtuberIds)
+        .in("id", projectIds)
       
       if (error) {
-        console.error("Error fetching editor project details:", error)
+        console.error("Error fetching assigned project details:", error)
       } else {
-        editedProjectsList = projects || []
+        assignedProjectsList = projects || []
       }
     }
 
     // Combine projects
     const projects = [
       ...(ownedProjects || []),
-      ...editedProjectsList
+      ...assignedProjectsList
     ].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
       .slice(0, 4);
 
@@ -99,7 +98,7 @@ export async function fetchDashboardData() {
 
 export async function fetchProjects() {
   try {
-    const supabase = await createServerClient()
+    const supabase = createServerClient()
 
     const { data: { user } } = await supabase.auth.getUser()
 
@@ -130,38 +129,37 @@ export async function fetchProjects() {
       console.error("Error fetching owned projects:", ownedError)
     }
 
-    // Fetch projects where user is an editor
-    const { data: editorRelations2, error: editorError2 } = await supabase
-      .from("youtuber_editors")
-      .select("youtuber_id")
+    // Fetch projects where user is assigned as an editor
+    const { data: editorAssignments, error: editorError } = await supabase
+      .from("project_editors")
+      .select("project_id")
       .eq("editor_id", user.id)
-      .eq("status", "active")
       
-    if (editorError2) {
-      console.error("Error fetching editor relations:", editorError2)
+    if (editorError) {
+      console.error("Error fetching editor assignments:", editorError)
     }
 
-    // If user is an editor, fetch those project details
-    let editedProjectsList = []
-    if (editorRelations2 && editorRelations2.length > 0) {
-      const youtuberIds = editorRelations2.map((er: { youtuber_id: string }) => er.youtuber_id)
+    // If user is assigned to projects as an editor, fetch those project details
+    let assignedProjectsList = []
+    if (editorAssignments && editorAssignments.length > 0) {
+      const projectIds = editorAssignments.map((ea: { project_id: string }) => ea.project_id)
       
       const { data: projects, error } = await supabase
         .from("projects")
         .select("*")
-        .in("owner_id", youtuberIds)
+        .in("id", projectIds)
       
       if (error) {
-        console.error("Error fetching editor project details:", error)
+        console.error("Error fetching assigned project details:", error)
       } else {
-        editedProjectsList = projects || []
+        assignedProjectsList = projects || []
       }
     }
 
     // Combine projects
     const projects = [
       ...(ownedProjects || []),
-      ...editedProjectsList
+      ...assignedProjectsList
     ].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
 
     const isCreator = userData?.role === "youtuber"
@@ -193,7 +191,7 @@ interface ActiveEditor {
 
 export async function fetchProjectDetails(id: string) {
   try {
-    const supabase = await createServerClient()
+    const supabase = createServerClient()
 
     // Get current user
     const { data: { user } } = await supabase.auth.getUser()
@@ -246,7 +244,7 @@ export async function fetchProjectDetails(id: string) {
       console.error("Error fetching assigned editors:", assignedEditorsError)
     }
     
-    // Get all available editors for access control (simplified)
+    // Get all available editors for access control (from youtuber_editors - general relationships)
     const { data: allEditors } = await supabase
       .from("youtuber_editors")
       .select("editor_id")
@@ -320,8 +318,7 @@ export async function fetchProjectDetails(id: string) {
       versions: versions || [],
       messages: messages || [],
       userRole,
-      userId: user.id,
-      activeEditors
+      userId: user.id
     }
   } catch (error) {
     console.error("Error in fetchProjectDetails:", error)
@@ -331,7 +328,7 @@ export async function fetchProjectDetails(id: string) {
 
 export async function addProjectEditor(projectId: string, editorId: string) {
   try {
-    const supabase = await createServerClient()
+    const supabase = createServerClient()
     
     // Check if user is project owner
     const { data: project, error: projectError } = await supabase
@@ -349,11 +346,15 @@ export async function addProjectEditor(projectId: string, editorId: string) {
       throw new Error("Unauthorized")
     }
     
-    // Start a transaction to update both tables
-    const { data, error } = await supabase.rpc('add_project_editor', {
-      p_project_id: projectId,
-      p_editor_id: editorId
-    })
+    // Add editor to project_editors table
+    const { data, error } = await supabase
+      .from("project_editors")
+      .insert({
+        project_id: projectId,
+        editor_id: editorId
+      })
+      .select()
+      .single()
       
     if (error) {
       throw error
@@ -378,7 +379,7 @@ export async function updateProject(
   }
 ) {
   try {
-    const supabase = await createServerClient()
+    const supabase = createServerClient()
 
     // Check if user is project owner or editor
     const { data: project, error: projectError } = await supabase
@@ -396,7 +397,7 @@ export async function updateProject(
       throw new Error("Unauthorized")
     }
 
-    // Check if user is owner or editor
+    // Check if user is owner or assigned editor
     const { data: editorRelation } = await supabase
       .from("project_editors")
       .select("editor_id")
