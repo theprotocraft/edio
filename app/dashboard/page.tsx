@@ -18,11 +18,13 @@ export default async function DashboardPage() {
       <div>
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-3xl font-bold">Dashboard</h1>
-          <Link href="/dashboard/projects/new">
-            <Button>
-              <Plus className="mr-2 h-4 w-4" /> New Project
-            </Button>
-          </Link>
+          {isCreator && (
+            <Link href="/dashboard/projects/new">
+              <Button>
+                <Plus className="mr-2 h-4 w-4" /> New Project
+              </Button>
+            </Link>
+          )}
         </div>
 
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
@@ -121,12 +123,16 @@ export default async function DashboardPage() {
                 </div>
               ) : (
                 <div className="flex flex-col items-center justify-center h-40 text-center">
-                  <p className="text-gray-500 dark:text-gray-400 mb-4">No projects yet</p>
-                  <Link href="/dashboard/projects/new">
-                    <Button>
-                      <Plus className="mr-2 h-4 w-4" /> Create Project
-                    </Button>
-                  </Link>
+                  <p className="text-gray-500 dark:text-gray-400 mb-4">
+                    {isCreator ? "No projects yet" : "No projects assigned to you yet"}
+                  </p>
+                  {isCreator && (
+                    <Link href="/dashboard/projects/new">
+                      <Button>
+                        <Plus className="mr-2 h-4 w-4" /> Create Project
+                      </Button>
+                    </Link>
+                  )}
                 </div>
               )}
               {projects && projects.length > 0 && (
