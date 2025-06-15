@@ -13,8 +13,9 @@ import { NotificationsList } from "@/app/components/notifications-list"
 interface Project {
   id: string
   project_title: string
+  status: string
+  updated_at: string
   description?: string
-  status?: string
   created_at: string
   updated_at?: string
   owner?: {
@@ -112,7 +113,7 @@ export default async function OverviewPage() {
               ) : (
                 <div className="flex flex-col items-center justify-center h-40 text-center">
                   <p className="text-muted-foreground mb-4">
-                    {isCreator ? "No projects yet" : "No projects assigned to you yet"}
+                    {isCreator ? "No projects yet" : "No projects assigned yet"}
                   </p>
                   {isCreator && (
                     <Link href="/dashboard/projects/new">

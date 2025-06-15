@@ -21,7 +21,6 @@ const projectSchema = z.object({
   projectTitle: z.string().min(1, "Project title is required"),
   videoTitle: z.string().optional(),
   description: z.string().optional(),
-  hashtags: z.string().optional(),
   file: z.instanceof(File, { message: "Video file is required" }),
   selectedEditor: z.string().optional(),
 })
@@ -49,7 +48,6 @@ export default function CreateProjectForm() {
       projectTitle: "",
       videoTitle: "",
       description: "",
-      hashtags: "",
       selectedEditor: "",
     },
   })
@@ -77,7 +75,6 @@ export default function CreateProjectForm() {
         projectTitle: data.projectTitle,
         videoTitle: data.videoTitle,
         description: data.description,
-        hashtags: data.hashtags,
         file: data.file,
         selectedEditors: data.selectedEditor ? [data.selectedEditor] : [],
         onProgress: (progress: number) => {
@@ -158,20 +155,6 @@ export default function CreateProjectForm() {
 
             <FormField
               control={form.control}
-              name="hashtags"
-              render={({ field }) => (
-                <FormItem className="space-y-2">
-                  <FormLabel>Hashtags (Optional)</FormLabel>
-                  <FormControl>
-                    <Input placeholder="#videoedit #youtube" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
               name="file"
               render={({ field: { onChange, value, ...rest } }) => (
                 <FormItem className="space-y-2">
@@ -203,7 +186,14 @@ export default function CreateProjectForm() {
                     <Select onValueChange={(value) => field.onChange(value === "none" ? "" : value)} defaultValue={field.value || "none"}>
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder="Choose an editor" />
+                          <SelectValue>
+                            {field.value && field.value !== "none" ? (
+                              (() => {
+                                const selectedEditor = editors.find(editor => editor.id === field.value)
+                                return selectedEditor ? (selectedEditor.name || selectedEditor.email) : "Choose an editor"
+                              })()
+                            ) : "No editor selected"}
+                          </SelectValue>
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>

@@ -1,4 +1,4 @@
-import { createServerClient } from "@/app/lib/supabase-server"
+import { createServerClient } from "@/lib/supabase-server"
 
 // Server-side API functions
 
@@ -247,10 +247,16 @@ export async function fetchProjectDetails(id: string) {
     // Get all available editors for access control (from youtuber_editors - general relationships)
     const { data: allEditors } = await supabase
       .from("youtuber_editors")
-      .select("editor_id")
+      .select(`
+        editor_id,
+        editor:users(id, name, email)
+      `)
       .eq("youtuber_id", basicProject.owner_id)
       .eq("status", "active")
     
+    // Transform active editors data
+    const activeEditors = allEditors?.map((relation: any) => relation.editor).filter(Boolean) || []
+
     // Check access rights
     const userIsOwner = basicProject.owner_id === user.id
     const userIsAssignedEditor = assignedEditors?.some((e: { editor_id: string }) => e.editor_id === user.id) || false
@@ -373,7 +379,6 @@ export async function updateProject(
     title?: string
     videoTitle?: string
     description?: string
-    hashtags?: string[]
     youtube_channel_id?: string
     publishing_status?: 'idle' | 'publishing' | 'completed' | 'failed'
   }
@@ -416,7 +421,6 @@ export async function updateProject(
         project_title: updates.title,
         video_title: updates.videoTitle,
         description: updates.description,
-        hashtags: updates.hashtags,
         youtube_channel_id: updates.youtube_channel_id,
         publishing_status: updates.publishing_status,
         updated_at: new Date().toISOString()
@@ -433,5 +437,105 @@ export async function updateProject(
   } catch (error) {
     console.error("Error updating project:", error)
     return { success: false, error }
+  }
+}
+
+export async function fetchUserProjects(userId: string) {
+  try {
+    const supabase = await createServerClient()
+
+    // Get projects where user is owner
+    const { data: ownedProjects, error: ownedError } = await supabase
+      .from("projects")
+      .select(`
+        *,
+        owner:users!projects_owner_id_fkey(id, name, email),
+        editor:users!editor_id(id, name, email)
+      `)
+      .eq("owner_id", userId)
+      .order("created_at", { ascending: false })
+
+    if (ownedError) {
+      console.error("Error fetching owned projects:", ownedError)
+    }
+
+    // Get projects where user is assigned as editor
+    const { data: assignedProjects, error: assignedError } = await supabase
+      .from("project_editors")
+      .select(`
+        project:projects(
+          *,
+          owner:users!projects_owner_id_fkey(id, name, email),
+          editor:users!editor_id(id, name, email)
+        )
+      `)
+      .eq("editor_id", userId)
+
+    if (assignedError) {
+      console.error("Error fetching assigned projects:", assignedError)
+    }
+
+    // Combine and flatten projects
+    const allProjects = [
+      ...(ownedProjects || []),
+      ...(assignedProjects?.map((ap: any) => ap.project).filter(Boolean) || [])
+    ]
+
+    // Remove duplicates based on project id
+    const uniqueProjects = allProjects.filter((project, index, self) =>
+      index === self.findIndex((p) => p.id === project.id)
+    )
+
+    return uniqueProjects
+  } catch (error) {
+    console.error("Error in fetchUserProjects:", error)
+    return []
+  }
+}
+
+export async function fetchUserSettings(userId: string) {
+  try {
+    const supabase = await createServerClient()
+
+    const { data: user, error } = await supabase
+      .from("users")
+      .select("*")
+      .eq("id", userId)
+      .single()
+
+    if (error) {
+      console.error("Error fetching user settings:", error)
+      return null
+    }
+
+    return user
+  } catch (error) {
+    console.error("Error in fetchUserSettings:", error)
+    return null
+  }
+}
+
+export async function fetchAvailableEditors(youtuberId: string) {
+  try {
+    const supabase = await createServerClient()
+
+    const { data: editors, error } = await supabase
+      .from("youtuber_editors")
+      .select(`
+        editor_id,
+        editor:users(id, name, email, avatar_url)
+      `)
+      .eq("youtuber_id", youtuberId)
+      .eq("status", "active")
+
+    if (error) {
+      console.error("Error fetching available editors:", error)
+      return []
+    }
+
+    return editors?.map((relation: any) => relation.editor).filter(Boolean) || []
+  } catch (error) {
+    console.error("Error in fetchAvailableEditors:", error)
+    return []
   }
 } 

@@ -19,6 +19,14 @@ import { ImageIcon, Upload, Loader2, Youtube } from "lucide-react"
 import { formatFileSize } from "@/lib/utils"
 import Image from "next/image"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 
 interface ProjectDetailsProps {
   project: any
@@ -38,10 +46,20 @@ interface UploadResult {
   fileSize: number;
 }
 
+interface VideoVersion {
+  id: string
+  version_number: number
+  file_url: string
+  created_at: string
+  notes?: string
+  uploader?: {
+    name: string
+  }
+}
+
 const projectDetailsSchema = z.object({
   videoTitle: z.string().optional(),
   description: z.string().optional(),
-  hashtags: z.string().optional(),
   youtubeChannel: z.string().optional(),
 })
 
@@ -55,12 +73,19 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null)
   const [channels, setChannels] = useState<YouTubeChannel[]>([])
   const [loadingChannels, setLoadingChannels] = useState(false)
-  const [publishing, setPublishing] = useState(project.publishing_status === "publishing")
+  
+  // YouTube publish popup state
+  const [publishDialogOpen, setPublishDialogOpen] = useState(false)
+  const [publishing, setPublishing] = useState(false)
+  const [videoVersions, setVideoVersions] = useState<VideoVersion[]>([])
+  const [loadingVersions, setLoadingVersions] = useState(false)
+  const [selectedVersionId, setSelectedVersionId] = useState<string>("")
+  const [selectedPrivacyStatus, setSelectedPrivacyStatus] = useState<string>("private")
+  
   const router = useRouter()
   const { toast } = useToast()
   const { user } = useSupabase()
 
-  console.log("uploads", uploads)
   // Find thumbnail from uploads (if any)
   const thumbnailUpload = uploads.find(upload => upload.file_type === "thumbnail");
 
@@ -70,15 +95,26 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
       const getUrl = async () => {
         try {
           const presignedUrl = await getPresignedViewUrl(thumbnailUpload.file_url);
-          setThumbnailUrl(presignedUrl);
+          console.log("Thumbnail presigned URL:", presignedUrl);
+          
+          // Check if we got a valid presigned URL (should be different from original)
+          if (presignedUrl && presignedUrl !== thumbnailUpload.file_url) {
+            setThumbnailUrl(presignedUrl);
+          } else {
+            console.warn("Failed to get presigned URL, using original URL");
+            setThumbnailUrl(thumbnailUpload.file_url);
+          }
         } catch (error) {
           console.error("Failed to get presigned URL for thumbnail:", error);
-          // Set a placeholder or error image
-          setThumbnailUrl(null);
+          // Use the original URL as fallback
+          setThumbnailUrl(thumbnailUpload.file_url);
         }
       };
       
       getUrl();
+    } else {
+      // Reset thumbnail URL if no upload
+      setThumbnailUrl(null);
     }
   }, [thumbnailUpload]);
 
@@ -110,35 +146,44 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
     }
   }, [userRole, toast])
 
-  // Check publishing status on mount
+  // Fetch video versions when publish dialog opens
   useEffect(() => {
-    if (project.publishing_status === "publishing") {
-      const checkPublishingStatus = async () => {
+    if (publishDialogOpen) {
+      const fetchVersions = async () => {
+        setLoadingVersions(true)
         try {
-          const response = await fetch(`/api/projects/${project.id}/publish/status`)
+          const response = await fetch(`/api/projects/${project.id}/versions`)
           if (!response.ok) {
-            throw new Error('Failed to check publishing status')
+            throw new Error('Failed to fetch video versions')
           }
-          const { status } = await response.json()
-          if (status === 'completed' || status === 'failed') {
-            setPublishing(false)
-            router.refresh()
+          const data = await response.json()
+          setVideoVersions(data.versions || [])
+          
+          // Auto-select the latest version
+          if (data.versions && data.versions.length > 0) {
+            setSelectedVersionId(data.versions[0].id)
           }
         } catch (error) {
-          console.error('Error checking publishing status:', error)
+          console.error('Error fetching video versions:', error)
+          toast({
+            title: "Error",
+            description: "Failed to load video versions",
+            variant: "destructive",
+          })
+        } finally {
+          setLoadingVersions(false)
         }
       }
 
-      const interval = setInterval(checkPublishingStatus, 5000)
-      return () => clearInterval(interval)
+      fetchVersions()
     }
-  }, [project.id, project.publishing_status, router])
+  }, [publishDialogOpen, project.id, toast])
+
   const form = useForm<ProjectDetailsFormValues>({
     resolver: zodResolver(projectDetailsSchema),
     defaultValues: {
       videoTitle: project.video_title || "",
       description: project.description || "",
-      hashtags: project.hashtags || "",
       youtubeChannel: project.youtube_channel_id || "",
     },
   })
@@ -221,7 +266,6 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
         title: project.project_title,
         videoTitle: data.videoTitle,
         description: data.description,
-        hashtags: data.hashtags,
         youtube_channel_id: data.youtubeChannel,
       })
 
@@ -245,8 +289,17 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
   const handlePublishToYouTube = async () => {
     if (!project.youtube_channel_id) {
       toast({
-        title: "YouTube Channel Required",
+        title: "No channel selected",
         description: "Please select a YouTube channel before publishing.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (!selectedVersionId) {
+      toast({
+        title: "No version selected",
+        description: "Please select a video version to publish.",
         variant: "destructive",
       })
       return
@@ -260,46 +313,48 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
         title: project.project_title,
         videoTitle: formData.videoTitle,
         description: formData.description,
-        hashtags: formData.hashtags,
         youtube_channel_id: formData.youtubeChannel,
       })
 
-      // Start publishing process
       const response = await fetch(`/api/projects/${project.id}/publish`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          videoTitle: formData.videoTitle,
-          description: formData.description,
-          hashtags: formData.hashtags,
-          youtubeChannel: formData.youtubeChannel,
-          thumbnailUrl: thumbnailUrl,
+          versionId: selectedVersionId,
+          privacyStatus: selectedPrivacyStatus,
         }),
       })
 
       if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.message || 'Failed to publish to YouTube')
+        const data = await response.json()
+        throw new Error(data.error || 'Failed to publish video')
       }
 
       toast({
-        title: "Success",
-        description: "Video has been published to YouTube successfully!",
+        title: "Video published",
+        description: "Your video has been published to YouTube successfully.",
       })
+
+      setPublishDialogOpen(false)
       router.refresh()
     } catch (error: any) {
-      console.error('Error publishing to YouTube:', error)
       toast({
         title: "Error",
-        description: error.message || "Failed to publish to YouTube",
+        description: error.message || "Failed to publish video",
         variant: "destructive",
       })
     } finally {
       setPublishing(false)
     }
   }
+
+  const privacyOptions = [
+    { value: "private", label: "Private", description: "Only you can view" },
+    { value: "unlisted", label: "Unlisted", description: "Anyone with the link can view" },
+    { value: "public", label: "Public", description: "Anyone can search for and view" },
+  ]
 
   return (
     <div className="space-y-6">
@@ -352,7 +407,23 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
                       >
                         <FormControl>
                           <SelectTrigger>
-                            <SelectValue placeholder="Select YouTube channel" />
+                            <SelectValue>
+                              {field.value ? (
+                                (() => {
+                                  const selectedChannel = channels.find(channel => channel.id === field.value)
+                                  return selectedChannel ? (
+                                    <div className="flex items-center">
+                                      <img
+                                        src={selectedChannel.channel_thumbnail}
+                                        alt={selectedChannel.channel_name}
+                                        className="w-6 h-6 rounded-full mr-2"
+                                      />
+                                      <span>{selectedChannel.channel_name}</span>
+                                    </div>
+                                  ) : "Select YouTube channel"
+                                })()
+                              ) : "Select YouTube channel"}
+                            </SelectValue>
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
@@ -495,23 +566,6 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
                   Recommended size: 1280×720 pixels (16:9 ratio) • Maximum size: 2MB • Formats: JPG, PNG
                 </p>
               </div>
-
-              <FormField
-                control={form.control}
-                name="hashtags"
-                render={({ field }) => (
-                  <FormItem className="space-y-2">
-                    <FormLabel>Hashtags (Optional)</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Enter hashtags separated by spaces" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                    <p className="text-xs text-muted-foreground">
-                      Example: #youtube #video #tutorial
-                    </p>
-                  </FormItem>
-                )}
-              />
             </CardContent>
             <CardFooter className="flex justify-between">
               <Button
@@ -525,27 +579,149 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
               {userRole === "youtuber" && (
                 <Button
                   type="button"
-                  onClick={handlePublishToYouTube}
-                  disabled={publishing || !project.youtube_channel_id}
-                  className="bg-[#FF0000] hover:bg-[#CC0000] text-white rounded-2xl shadow-md transition-transform active:scale-[0.98] flex items-center gap-2"
+                  onClick={() => setPublishDialogOpen(true)}
+                  disabled={!project.youtube_channel_id}
+                  className="bg-red-600 hover:bg-red-700 text-white rounded-2xl shadow-md transition-transform active:scale-[0.98]"
                 >
-                  {publishing ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Publishing...
-                    </>
-                  ) : (
-                    <>
-                      <Youtube className="mr-2 h-4 w-4" />
-                      Publish to YouTube
-                    </>
-                  )}
+                  <Youtube className="mr-2 h-4 w-4" />
+                  Publish to YouTube
                 </Button>
               )}
             </CardFooter>
           </form>
         </Form>
       </Card>
+
+      {/* YouTube Publish Dialog */}
+      <Dialog open={publishDialogOpen} onOpenChange={setPublishDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Publish to YouTube</DialogTitle>
+            <DialogDescription>
+              Select the video version and privacy settings for your YouTube upload.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            {/* Video Version Selection */}
+            <div className="space-y-2">
+              <Label htmlFor="version-select">Video Version</Label>
+              {loadingVersions ? (
+                <div className="flex items-center justify-center py-4">
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                  <span className="ml-2 text-sm">Loading versions...</span>
+                </div>
+              ) : (
+                <Select
+                  value={selectedVersionId}
+                  onValueChange={setSelectedVersionId}
+                  disabled={loadingVersions}
+                >
+                  <SelectTrigger>
+                    <SelectValue>
+                      {selectedVersionId ? (
+                        (() => {
+                          const selectedVersion = videoVersions.find(v => v.id === selectedVersionId)
+                          return selectedVersion ? (
+                            <div className="flex flex-col items-start text-left">
+                              <span>Version {selectedVersion.version_number}</span>
+                              <span className="text-xs text-muted-foreground">
+                                {new Date(selectedVersion.created_at).toLocaleDateString()} 
+                                {selectedVersion.uploader?.name && ` • by ${selectedVersion.uploader.name}`}
+                                {selectedVersion.notes && ` • ${selectedVersion.notes}`}
+                              </span>
+                            </div>
+                          ) : "Select a video version"
+                        })()
+                      ) : "Select a video version"}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {videoVersions.map((version) => (
+                      <SelectItem key={version.id} value={version.id}>
+                        <div className="flex flex-col">
+                          <span>Version {version.version_number}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {new Date(version.created_at).toLocaleDateString()} 
+                            {version.uploader?.name && ` • by ${version.uploader.name}`}
+                            {version.notes && ` • ${version.notes}`}
+                          </span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+
+            {/* Privacy Settings */}
+            <div className="space-y-2">
+              <Label htmlFor="privacy-select">Privacy Setting</Label>
+              <Select
+                value={selectedPrivacyStatus}
+                onValueChange={setSelectedPrivacyStatus}
+              >
+                <SelectTrigger>
+                  <SelectValue>
+                    {selectedPrivacyStatus ? (
+                      (() => {
+                        const selectedOption = privacyOptions.find(option => option.value === selectedPrivacyStatus)
+                        return selectedOption ? (
+                          <div className="flex flex-col items-start text-left">
+                            <span>{selectedOption.label}</span>
+                            <span className="text-xs text-muted-foreground">
+                              {selectedOption.description}
+                            </span>
+                          </div>
+                        ) : "Select privacy setting"
+                      })()
+                    ) : "Select privacy setting"}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {privacyOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      <div className="flex flex-col">
+                        <span>{option.label}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {option.description}
+                        </span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setPublishDialogOpen(false)}
+              disabled={publishing}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handlePublishToYouTube}
+              disabled={publishing || !selectedVersionId || loadingVersions}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              {publishing ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Publishing...
+                </>
+              ) : (
+                <>
+                  <Youtube className="mr-2 h-4 w-4" />
+                  Confirm & Publish
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

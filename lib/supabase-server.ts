@@ -29,7 +29,11 @@ export const createServerClient = () => {
       } as any
     }
 
-    return createServerComponentClient<Database>({ cookies })
+    const cookieStore = cookies()
+    
+    return createServerComponentClient<Database>({
+      cookies: () => cookieStore,
+    })
   } catch (error) {
     console.error("Error creating server client:", error)
     // Return a minimal client that won't throw errors

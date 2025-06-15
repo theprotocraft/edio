@@ -23,23 +23,21 @@ export async function fetchProject(id: string) {
   return project
 }
 
-export async function createProject({ 
-  projectTitle, 
-  videoTitle, 
+export async function createProject({
+  projectTitle,
+  videoTitle,
   description,
-  hashtags,
   file,
-  selectedEditors,
-  onProgress
-}: { 
-  projectTitle: string; 
+  selectedEditors = [],
+  onProgress,
+}: {
+  projectTitle: string;
   videoTitle?: string;
   description?: string;
-  hashtags?: string;
   file: File;
   selectedEditors?: string[];
   onProgress?: (progress: number) => void;
-}): Promise<string> {
+}) {
   try {
     // Step 1: Get a presigned URL for the video upload
     const presignResponse = await fetch("/api/uploads/initial", {
@@ -66,7 +64,7 @@ export async function createProject({
     await uploadFileWithProgress(uploadUrl, file, onProgress)
 
     // Step 3: Create the project record
-    const projectResponse = await fetch("/api/projects", {
+    const response = await fetch("/api/projects", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -75,7 +73,6 @@ export async function createProject({
         projectTitle,
         videoTitle,
         description,
-        hashtags,
         fileUrl,
         fileName: file.name,
         fileSize: file.size,
@@ -83,13 +80,13 @@ export async function createProject({
       }),
     })
 
-    if (!projectResponse.ok) {
-      const errorData = await projectResponse.json()
+    if (!response.ok) {
+      const errorData = await response.json()
       throw new Error(errorData.error || "Failed to create project")
     }
 
-    const { projectId } = await projectResponse.json()
-    return projectId
+    const result = await response.json()
+    return result
   } catch (error: any) {
     console.error("Error creating project:", error)
     throw new Error(error.message || "Failed to create project")
@@ -140,50 +137,30 @@ async function uploadFileWithProgress(
   })
 }
 
-export async function updateProject(id: string, { 
-  title, 
-  videoTitle, 
-  description,
-  hashtags,
-  youtube_channel_id,
-  finalVersionNumber,
-  thumbnail
-}: { 
-  title?: string; 
-  videoTitle?: string; 
-  description?: string;
-  hashtags?: string;
-  finalVersionNumber?: number;
-  youtube_channel_id?: string;
-  thumbnail?: {
-    url: string;
-    name: string;
-    size: number;
-  };
-}) {
-  const supabase = createClient()
+export async function updateProject(
+  projectId: string,
+  updates: {
+    title?: string
+    videoTitle?: string
+    description?: string
+    youtube_channel_id?: string
+    publishing_status?: 'idle' | 'publishing' | 'completed' | 'failed'
+  }
+) {
+  const response = await fetch(`/api/projects/${projectId}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(updates),
+  })
 
-  const updateData: any = {}
-  if (title !== undefined) updateData.project_title = title
-  if (videoTitle !== undefined) updateData.video_title = videoTitle
-  if (description !== undefined) updateData.description = description
-  if (hashtags !== undefined) updateData.hashtags = hashtags
-  if (finalVersionNumber !== undefined) updateData.final_version_number = finalVersionNumber
-  if (youtube_channel_id !== undefined) updateData.youtube_channel_id = youtube_channel_id
-  if (thumbnail !== undefined) {
-    updateData.thumbnail_url = thumbnail.url
-    updateData.thumbnail_name = thumbnail.name
-    updateData.thumbnail_size = thumbnail.size
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.message || 'Failed to update project')
   }
 
-  const { error } = await supabase
-    .from("projects")
-    .update(updateData)
-    .eq("id", id)
-
-  if (error) {
-    throw error
-  }
+  return response.json()
 }
 
 export async function deleteProject(id: string) {
@@ -461,6 +438,8 @@ export async function sendMessage({
 
 export async function getPresignedViewUrl(fileUrl: string) {
   try {
+    console.log("Getting presigned URL for:", fileUrl);
+    
     // Validate that fileUrl is a valid URL string
     if (!fileUrl || typeof fileUrl !== 'string') {
       throw new Error('Invalid file URL provided');
@@ -470,8 +449,9 @@ export async function getPresignedViewUrl(fileUrl: string) {
     const url = new URL(fileUrl);
     const filePath = url.pathname.startsWith('/') ? url.pathname.substring(1) : url.pathname;
     
+    console.log("Extracted file path:", filePath);
+    
     // Call the API to get a presigned URL for viewing
-    console.log("filePath", filePath)
     const response = await fetch("/api/uploads/get-presigned-url", {
       method: "POST",
       headers: {
@@ -480,12 +460,16 @@ export async function getPresignedViewUrl(fileUrl: string) {
       body: JSON.stringify({ filePath }),
     });
 
+    console.log("API response status:", response.status);
+
     if (!response.ok) {
       const errorData = await response.json();
+      console.error("API error response:", errorData);
       throw new Error(errorData.error || "Failed to get view URL");
     }
 
     const { presignedUrl } = await response.json();
+    console.log("Generated presigned URL:", presignedUrl);
     return presignedUrl;
   } catch (error: any) {
     console.error("Error getting presigned view URL:", error);
