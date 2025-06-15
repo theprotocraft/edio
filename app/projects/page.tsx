@@ -29,11 +29,13 @@ export default async function ProjectsPage() {
       <div>
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-3xl font-bold">Projects</h1>
-          <Link href="/projects/new">
-            <Button>
-              <Plus className="mr-2 h-4 w-4" /> New Project
-            </Button>
-          </Link>
+          {isCreator && (
+            <Link href="/projects/new">
+              <Button>
+                <Plus className="mr-2 h-4 w-4" /> New Project
+              </Button>
+            </Link>
+          )}
         </div>
 
         <Tabs defaultValue="all" className="space-y-4">

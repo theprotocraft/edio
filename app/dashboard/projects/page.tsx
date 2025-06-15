@@ -97,11 +97,7 @@ export default function ProjectsPage() {
       <div className="flex flex-col space-y-6 w-full max-w-none">
         <div className="flex items-center justify-between">
           <h1 className="text-3xl font-bold tracking-tight">Projects</h1>
-          <Link href="/dashboard/projects/new">
-            <Button className="rounded-2xl shadow-md transition-transform active:scale-[0.98]">
-              <Plus className="mr-2 h-4 w-4" /> New Project
-            </Button>
-          </Link>
+          {/* Don't show button while loading since we don't know user role yet */}
         </div>
         <div className="flex items-center justify-center h-60">
           <p className="text-muted-foreground">Loading projects...</p>
@@ -114,11 +110,13 @@ export default function ProjectsPage() {
     <div className="flex flex-col space-y-6 w-full max-w-none">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold tracking-tight">Projects</h1>
-        <Link href="/dashboard/projects/new">
-          <Button className="rounded-2xl shadow-md transition-transform active:scale-[0.98]">
-            <Plus className="mr-2 h-4 w-4" /> New Project
-          </Button>
-        </Link>
+        {isCreator && (
+          <Link href="/dashboard/projects/new">
+            <Button className="rounded-2xl shadow-md transition-transform active:scale-[0.98]">
+              <Plus className="mr-2 h-4 w-4" /> New Project
+            </Button>
+          </Link>
+        )}
       </div>
 
       <div className="flex flex-col space-y-4 md:flex-row md:items-center md:justify-between md:space-y-0 md:space-x-4">
@@ -174,13 +172,19 @@ export default function ProjectsPage() {
         ) : (
           <div className="col-span-full flex flex-col items-center justify-center h-60 text-center">
             <p className="text-muted-foreground mb-4">
-              {debouncedSearchTerm || statusFilter !== "all" ? "No projects match your search criteria" : "No projects found"}
+              {debouncedSearchTerm || statusFilter !== "all" 
+                ? "No projects match your search criteria" 
+                : isCreator 
+                  ? "No projects found" 
+                  : "No projects assigned to you yet"}
             </p>
-            <Link href="/dashboard/projects/new">
-              <Button className="rounded-2xl shadow-md transition-transform active:scale-[0.98]">
-                <Plus className="mr-2 h-4 w-4" /> Create Your First Project
-              </Button>
-            </Link>
+            {isCreator && (
+              <Link href="/dashboard/projects/new">
+                <Button className="rounded-2xl shadow-md transition-transform active:scale-[0.98]">
+                  <Plus className="mr-2 h-4 w-4" /> Create Your First Project
+                </Button>
+              </Link>
+            )}
           </div>
         )}
       </div>

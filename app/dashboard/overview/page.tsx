@@ -15,6 +15,13 @@ interface Project {
   project_title: string
   status: string
   updated_at: string
+  description?: string
+  created_at: string
+  updated_at?: string
+  owner?: {
+    name: string
+    avatar_url?: string
+  }
 }
 
 export default async function OverviewPage() {
