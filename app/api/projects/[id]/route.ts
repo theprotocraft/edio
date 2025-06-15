@@ -65,6 +65,37 @@ export async function GET(
       console.error("Error fetching uploads:", uploadsError)
     }
 
+    // Get messages with sender information
+    const { data: messages, error: messagesError } = await supabase
+      .from("messages")
+      .select(`
+        *,
+        sender:users(id, name, email, avatar_url)
+      `)
+      .eq("project_id", projectId)
+      .order("created_at", { ascending: true })
+
+    if (messagesError) {
+      console.error("Error fetching messages:", messagesError)
+    }
+
+    // Get video versions
+    const { data: versions, error: versionsError } = await supabase
+      .from("video_versions")
+      .select(`
+        *,
+        uploader:users(id, name, email)
+      `)
+      .eq("project_id", projectId)
+      .order("version_number", { ascending: false })
+
+    if (versionsError) {
+      console.error("Error fetching versions:", versionsError)
+    }
+
+    // Get current user for userId
+    const { data: { user } } = await supabase.auth.getUser()
+
     // Transform the data to match the expected format
     const transformedProject = {
       ...project,
@@ -72,7 +103,10 @@ export async function GET(
       editor: project.editor,
       activeEditors: project.project_editors.map((pe: any) => pe.editor),
       youtube_channel_id: project.youtube_channel_id,
-      uploads: uploads || []
+      uploads: uploads || [],
+      messages: messages || [],
+      versions: versions || [],
+      userId: user?.id
     }
 
     return NextResponse.json(transformedProject)

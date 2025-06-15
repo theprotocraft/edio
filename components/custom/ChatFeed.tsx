@@ -33,12 +33,26 @@ export function ChatFeed({ projectId, initialMessages, userId }: ChatFeedProps) 
     scrollToBottom()
   }, [msgs])
 
+
   // Set up Supabase Realtime subscription
   useEffect(() => {
-    if (!supabase) return
+    if (!supabase) {
+      console.log('No supabase client available for realtime')
+      return
+    }
 
+    console.log('Setting up realtime subscription for project:', projectId)
+    
+    // Subscribe to the channel and listen for INSERT events
     const channel = supabase
-      .channel(`messages:${projectId}`)
+      .channel(`project-${projectId}-messages`)
+      .on(
+        'broadcast',
+        { event: 'test' },
+        (payload) => {
+          console.log('🧪 REALTIME: Broadcast test received:', payload)
+        }
+      )
       .on(
         'postgres_changes',
         {
@@ -48,51 +62,101 @@ export function ChatFeed({ projectId, initialMessages, userId }: ChatFeedProps) 
           filter: `project_id=eq.${projectId}`
         },
         async (payload) => {
-          const newMessage = payload.new as Message
+          console.log('🔥 REALTIME: Raw payload received:', payload)
+          const newMessage = payload.new as any
+          console.log('🔥 REALTIME: Parsed message:', newMessage)
           
-          // Fetch complete message data with sender info if missing
-          if (!newMessage.sender && supabase) {
-            try {
-              const { data: fullMessage } = await supabase
-                .from("messages")
-                .select(`
-                  *,
-                  sender:users(id, name, email, avatar_url)
-                `)
-                .eq("id", newMessage.id)
-                .single()
-              
-              if (fullMessage) {
-                setMsgs(prev => {
-                  // Avoid duplicates
-                  if (prev.find(msg => msg.id === fullMessage.id)) {
-                    return prev
+          // Fetch complete message data with sender info since realtime doesn't include relations
+          try {
+            const { data: fullMessage } = await supabase
+              .from("messages")
+              .select(`
+                *,
+                sender:users(id, name, email, avatar_url)
+              `)
+              .eq("id", newMessage.id)
+              .single()
+            
+            if (fullMessage) {
+              console.log('Fetched full message with sender:', fullMessage)
+              setMsgs(prev => {
+                console.log('Current messages before update:', prev)
+                // Check if this message already exists (avoid duplicates)
+                if (prev.find(msg => msg.id === fullMessage.id)) {
+                  console.log('Message already exists, skipping')
+                  return prev
+                }
+                
+                // If this is from the current user, replace optimistic message but keep "You" as name
+                if (fullMessage.sender_id === userId) {
+                  console.log('Replacing optimistic message for current user')
+                  const withoutOptimistic = prev.filter(msg => !msg.id.startsWith('temp-'))
+                  // Pre-construct the sender object to avoid any temporary exposure of real user data
+                  const youSender = {
+                    id: userId,
+                    name: "You",
+                    email: fullMessage.sender?.email,
+                    avatar_url: fullMessage.sender?.avatar_url
                   }
-                  return [...prev, fullMessage as Message]
-                })
-                return
+                  const messageWithYou = {
+                    ...fullMessage,
+                    sender: youSender // Use pre-constructed sender object
+                  } as Message
+                  const updated = [...withoutOptimistic, messageWithYou]
+                  console.log('Updated messages after replacing optimistic:', updated)
+                  return updated
+                }
+                
+                // For other users' messages, just add normally
+                console.log('Adding message from other user')
+                const updated = [...prev, fullMessage as Message]
+                console.log('Updated messages after adding other user message:', updated)
+                return updated
+              })
+            }
+          } catch (error) {
+            console.error("Error fetching full message data:", error)
+            
+            // Fallback to basic message if sender fetch fails
+            setMsgs(prev => {
+              console.log('Using fallback message update')
+              // Check if this message already exists (avoid duplicates)
+              if (prev.find(msg => msg.id === newMessage.id)) {
+                return prev
               }
-            } catch (error) {
-              console.error("Error fetching full message data:", error)
-            }
+              
+              // If this is from the current user, replace optimistic message but keep "You" as name
+              if (newMessage.sender_id === userId) {
+                const withoutOptimistic = prev.filter(msg => !msg.id.startsWith('temp-'))
+                // Pre-construct the sender object to avoid any temporary exposure of real user data
+                const youSender = {
+                  id: userId,
+                  name: "You",
+                  email: undefined,
+                  avatar_url: undefined
+                }
+                const messageWithYou = {
+                  ...newMessage,
+                  sender: youSender // Use pre-constructed sender object
+                } as Message
+                return [...withoutOptimistic, messageWithYou]
+              }
+              
+              // For other users' messages, just add normally
+              return [...prev, newMessage as Message]
+            })
           }
-          
-          // Fallback to basic message if sender fetch fails
-          setMsgs(prev => {
-            // Avoid duplicates
-            if (prev.find(msg => msg.id === newMessage.id)) {
-              return prev
-            }
-            return [...prev, newMessage]
-          })
         }
       )
-      .subscribe()
+      .subscribe((status) => {
+        console.log('Realtime subscription status:', status)
+      })
 
     return () => {
-      supabase.removeChannel(channel)
+      console.log('Cleaning up realtime subscription')
+      channel.unsubscribe()
     }
-  }, [supabase, projectId])
+  }, [supabase, projectId, userId])
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -106,17 +170,60 @@ export function ChatFeed({ projectId, initialMessages, userId }: ChatFeedProps) 
     }
 
     setSending(true)
+    const messageContent = newMessage.trim()
+    
+    // Create optimistic message
+    const optimisticMessage: Message = {
+      id: `temp-${Date.now()}`, // Temporary ID
+      project_id: projectId,
+      sender_id: userId,
+      content: messageContent,
+      type: 'text',
+      created_at: new Date().toISOString(),
+      sender: {
+        id: userId,
+        name: "You", // Always use "You" for optimistic messages to avoid initials mismatch
+        email: undefined,
+      }
+    }
+
+    // Add optimistic message immediately
+    setMsgs(prev => [...prev, optimisticMessage])
+    setNewMessage("")
+    console.log('💡 Optimistic message added, current msgs count:', msgs.length + 1)
 
     try {
-      await sendMessage({
+      console.log('Sending message:', messageContent)
+      console.log('Optimistic message added to UI:', optimisticMessage)
+      
+      const result = await sendMessage({
         projectId,
-        content: newMessage,
+        content: messageContent,
       })
-
-      setNewMessage("")
-      // Note: The new message will appear via the realtime subscription
-      // No need to manually add it to the state
+      console.log('Message sent successfully:', result)
+      
+      // Test if realtime is working with a simple broadcast
+      if (supabase) {
+        const channel = supabase.channel(`project-${projectId}-messages`)
+        channel.send({
+          type: 'broadcast',
+          event: 'test',
+          payload: { message: 'Testing realtime connection', timestamp: Date.now() }
+        })
+        console.log('🧪 Test broadcast sent')
+      }
+      
+      // Add a small timeout to see if realtime kicks in
+      setTimeout(() => {
+        console.log('Current messages after 2 seconds:', msgs)
+      }, 2000)
+      
+      // The real message will replace the optimistic one via realtime subscription
     } catch (error: any) {
+      // Remove optimistic message on error
+      setMsgs(prev => prev.filter(msg => msg.id !== optimisticMessage.id))
+      setNewMessage(messageContent) // Restore the message content
+      
       toast({
         title: "Error",
         description: error.message || "Failed to send message.",
@@ -173,7 +280,10 @@ export function ChatFeed({ projectId, initialMessages, userId }: ChatFeedProps) 
                             : "bg-green-500"
                         }`}
                       >
-                        {getInitials(message.sender?.name || message.sender?.email || "User")}
+                        {message.sender_id === userId 
+                          ? "You" 
+                          : getInitials(message.sender?.name || message.sender?.email || "User")
+                        }
                       </AvatarFallback>
                     </Avatar>
 

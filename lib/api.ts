@@ -424,16 +424,25 @@ export async function sendMessage({
 }) {
   const supabase = createClient()
 
-  const { error } = await supabase.from("messages").insert({
+  const { data: userData } = await supabase.auth.getUser()
+  if (!userData.user) {
+    throw new Error("User not authenticated")
+  }
+
+  const { data, error } = await supabase.from("messages").insert({
     project_id: projectId,
-    sender_id: (await supabase.auth.getUser()).data.user?.id,
+    sender_id: userData.user.id,
     content,
     type: "text",
-  })
+  }).select()
 
   if (error) {
+    console.error("Error inserting message:", error)
     throw error
   }
+
+  console.log("Message inserted into database:", data)
+  return data
 }
 
 export async function getPresignedViewUrl(fileUrl: string) {
