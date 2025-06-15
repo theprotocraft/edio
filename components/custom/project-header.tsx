@@ -44,6 +44,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
+import { Label } from "@/components/ui/label"
 
 interface ProjectHeaderProps {
   project: any
@@ -95,6 +96,10 @@ export function ProjectHeader({ project, userRole }: ProjectHeaderProps) {
   const [channels, setChannels] = useState<YouTubeChannel[]>([])
   const [loadingChannels, setLoadingChannels] = useState(false)
   const [publishing, setPublishing] = useState(false)
+  const [videoVersions, setVideoVersions] = useState<VideoVersion[]>([])
+  const [loadingVersions, setLoadingVersions] = useState(false)
+  const [selectedVersionId, setSelectedVersionId] = useState<string>("")
+  const [selectedPrivacyStatus, setSelectedPrivacyStatus] = useState<string>("private")
   const [videoVersions, setVideoVersions] = useState<VideoVersion[]>([])
   const [loadingVersions, setLoadingVersions] = useState(false)
   const [selectedVersionId, setSelectedVersionId] = useState<string>("")
@@ -154,6 +159,39 @@ export function ProjectHeader({ project, userRole }: ProjectHeaderProps) {
 
     fetchChannels()
   }, [toast])
+
+  // Fetch video versions when publish dialog opens
+  useEffect(() => {
+    if (publishDialogOpen) {
+      const fetchVersions = async () => {
+        setLoadingVersions(true)
+        try {
+          const response = await fetch(`/api/projects/${project.id}/versions`)
+          if (!response.ok) {
+            throw new Error('Failed to fetch video versions')
+          }
+          const data = await response.json()
+          setVideoVersions(data.versions || [])
+          
+          // Auto-select the latest version
+          if (data.versions && data.versions.length > 0) {
+            setSelectedVersionId(data.versions[0].id)
+          }
+        } catch (error) {
+          console.error('Error fetching video versions:', error)
+          toast({
+            title: "Error",
+            description: "Failed to load video versions",
+            variant: "destructive",
+          })
+        } finally {
+          setLoadingVersions(false)
+        }
+      }
+
+      fetchVersions()
+    }
+  }, [publishDialogOpen, project.id, toast])
 
   // Fetch video versions when publish dialog opens
   useEffect(() => {
@@ -340,10 +378,20 @@ export function ProjectHeader({ project, userRole }: ProjectHeaderProps) {
   }
 
   const handlePublishToYouTube = async () => {
+  const handlePublishToYouTube = async () => {
     if (!project.youtube_channel_id) {
       toast({
         title: "No channel selected",
         description: "Please select a YouTube channel before publishing.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (!selectedVersionId) {
+      toast({
+        title: "No version selected",
+        description: "Please select a video version to publish.",
         variant: "destructive",
       })
       return
@@ -369,6 +417,13 @@ export function ProjectHeader({ project, userRole }: ProjectHeaderProps) {
           versionId: selectedVersionId,
           privacyStatus: selectedPrivacyStatus,
         }),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          versionId: selectedVersionId,
+          privacyStatus: selectedPrivacyStatus,
+        }),
       })
 
       if (!response.ok) {
@@ -381,6 +436,7 @@ export function ProjectHeader({ project, userRole }: ProjectHeaderProps) {
         description: "Your video has been published to YouTube successfully.",
       })
 
+      setPublishDialogOpen(false)
       setPublishDialogOpen(false)
       router.refresh()
     } catch (error: any) {

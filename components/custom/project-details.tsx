@@ -27,6 +27,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 
 interface ProjectDetailsProps {
   project: any
@@ -100,7 +108,15 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
           
           // Check if we got a valid presigned URL (should be different from original)
           if (presignedUrl && presignedUrl !== thumbnailUpload.file_url) {
+            console.log("Thumbnail presigned URL:", presignedUrl);
+          
+          // Check if we got a valid presigned URL (should be different from original)
+          if (presignedUrl && presignedUrl !== thumbnailUpload.file_url) {
             setThumbnailUrl(presignedUrl);
+          } else {
+            console.warn("Failed to get presigned URL, using original URL");
+            setThumbnailUrl(thumbnailUpload.file_url);
+          }
           } else {
             console.warn("Failed to get presigned URL, using original URL");
             setThumbnailUrl(thumbnailUpload.file_url);
@@ -113,6 +129,9 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
       };
       
       getUrl();
+    } else {
+      // Reset thumbnail URL if no upload
+      setThumbnailUrl(null);
     } else {
       // Reset thumbnail URL if no upload
       setThumbnailUrl(null);
@@ -148,15 +167,27 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
   }, [userRole, toast])
 
   // Fetch video versions when publish dialog opens
+  // Fetch video versions when publish dialog opens
   useEffect(() => {
+    if (publishDialogOpen) {
+      const fetchVersions = async () => {
+        setLoadingVersions(true)
     if (publishDialogOpen) {
       const fetchVersions = async () => {
         setLoadingVersions(true)
         try {
           const response = await fetch(`/api/projects/${project.id}/versions`)
+          const response = await fetch(`/api/projects/${project.id}/versions`)
           if (!response.ok) {
             throw new Error('Failed to fetch video versions')
+            throw new Error('Failed to fetch video versions')
           }
+          const data = await response.json()
+          setVideoVersions(data.versions || [])
+          
+          // Auto-select the latest version
+          if (data.versions && data.versions.length > 0) {
+            setSelectedVersionId(data.versions[0].id)
           const data = await response.json()
           setVideoVersions(data.versions || [])
           
@@ -177,7 +208,21 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
       }
 
       fetchVersions()
+          console.error('Error fetching video versions:', error)
+          toast({
+            title: "Error",
+            description: "Failed to load video versions",
+            variant: "destructive",
+          })
+        } finally {
+          setLoadingVersions(false)
+        }
+      }
+
+      fetchVersions()
     }
+  }, [publishDialogOpen, project.id, toast])
+
   }, [publishDialogOpen, project.id, toast])
 
   const form = useForm<ProjectDetailsFormValues>({
