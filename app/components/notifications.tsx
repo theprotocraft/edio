@@ -14,7 +14,7 @@ import { NotificationItem } from "./notification-item"
 interface Notification {
   id: string
   type: string
-  content: string
+  message: string
   metadata: any
   read: boolean
   created_at: string

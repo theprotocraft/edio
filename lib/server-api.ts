@@ -24,7 +24,7 @@ export async function fetchDashboardData() {
       return { user: null, projects: [], notifications: [], isCreator: false }
     }
 
-    // Fetch owned projects
+    // Fetch owned projects (for YouTubers)
     const { data: ownedProjects, error: ownedError } = await supabase
       .from("projects")
       .select("*")
@@ -36,36 +36,27 @@ export async function fetchDashboardData() {
       console.error("Error fetching owned projects:", ownedError)
     }
 
-    // Fetch projects where user is assigned as an editor
-    const { data: editorAssignments, error: editorError } = await supabase
-      .from("project_editors")
-      .select("project_id")
-      .eq("editor_id", user.id)
-      
-    if (editorError) {
-      console.error("Error fetching editor assignments:", editorError)
-    }
-
-    // If user is assigned to projects as an editor, fetch those project details
+    // Fetch projects where user is specifically assigned as editor
     let assignedProjectsList = []
-    if (editorAssignments && editorAssignments.length > 0) {
-      const projectIds = editorAssignments.map((ea: { project_id: string }) => ea.project_id)
+    if (userData?.role === "editor") {
+      const { data: assignedProjects, error: assignedError } = await supabase
+        .from("project_editors")
+        .select(`
+          project:projects(*)
+        `)
+        .eq("editor_id", user.id)
       
-      const { data: projects, error } = await supabase
-        .from("projects")
-        .select("*")
-        .in("id", projectIds)
-      
-      if (error) {
-        console.error("Error fetching assigned project details:", error)
+      if (assignedError) {
+        console.error("Error fetching assigned projects:", assignedError)
       } else {
-        assignedProjectsList = projects || []
+        assignedProjectsList = assignedProjects?.map((ap: any) => ap.project).filter(Boolean) || []
       }
     }
 
     // Combine projects
     const projects = [
       ...(ownedProjects || []),
+      ...assignedProjectsList
       ...assignedProjectsList
     ].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
       .slice(0, 4);
@@ -118,7 +109,7 @@ export async function fetchProjects() {
       return { user: null, projects: [], isCreator: false }
     }
 
-    // Fetch owned projects
+    // Fetch owned projects (for YouTubers)
     const { data: ownedProjects, error: ownedError } = await supabase
       .from("projects")
       .select("*")
@@ -129,36 +120,27 @@ export async function fetchProjects() {
       console.error("Error fetching owned projects:", ownedError)
     }
 
-    // Fetch projects where user is assigned as an editor
-    const { data: editorAssignments, error: editorError } = await supabase
-      .from("project_editors")
-      .select("project_id")
-      .eq("editor_id", user.id)
-      
-    if (editorError) {
-      console.error("Error fetching editor assignments:", editorError)
-    }
-
-    // If user is assigned to projects as an editor, fetch those project details
+    // Fetch projects where user is specifically assigned as editor
     let assignedProjectsList = []
-    if (editorAssignments && editorAssignments.length > 0) {
-      const projectIds = editorAssignments.map((ea: { project_id: string }) => ea.project_id)
+    if (userData?.role === "editor") {
+      const { data: assignedProjects, error: assignedError } = await supabase
+        .from("project_editors")
+        .select(`
+          project:projects(*)
+        `)
+        .eq("editor_id", user.id)
       
-      const { data: projects, error } = await supabase
-        .from("projects")
-        .select("*")
-        .in("id", projectIds)
-      
-      if (error) {
-        console.error("Error fetching assigned project details:", error)
+      if (assignedError) {
+        console.error("Error fetching assigned projects:", assignedError)
       } else {
-        assignedProjectsList = projects || []
+        assignedProjectsList = assignedProjects?.map((ap: any) => ap.project).filter(Boolean) || []
       }
     }
 
     // Combine projects
     const projects = [
       ...(ownedProjects || []),
+      ...assignedProjectsList
       ...assignedProjectsList
     ].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
 
