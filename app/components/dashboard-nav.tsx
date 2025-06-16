@@ -10,7 +10,7 @@ import { useEffect, useState } from "react"
 
 export function DashboardNav() {
   const pathname = usePathname()
-  const [isEditor, setIsEditor] = useState(false)
+  const [userRole, setUserRole] = useState<string | null>(null)
   const supabase = createClientComponentClient()
 
   useEffect(() => {
@@ -22,7 +22,7 @@ export function DashboardNav() {
           .select("role")
           .eq("id", user.id)
           .single()
-        setIsEditor(data?.role === "editor")
+        setUserRole(data?.role || null)
       }
     }
     checkUserRole()
@@ -48,7 +48,18 @@ export function DashboardNav() {
           Projects
         </Button>
       </Link>
-      {!isEditor && (
+      {userRole === "editor" && (
+        <Link href="/dashboard/editors">
+          <Button
+            variant={pathname === "/dashboard/editors" ? "default" : "ghost"}
+            className="w-full justify-start"
+          >
+            <Users className="mr-2 h-5 w-5" />
+            Youtubers
+          </Button>
+        </Link>
+      )}
+      {userRole === "youtuber" && (
         <Link href="/dashboard/editors">
           <Button
             variant={pathname === "/dashboard/editors" ? "default" : "ghost"}

@@ -89,15 +89,9 @@ export default async function DashboardPage() {
                     <Link key={project.id} href={`/dashboard/projects/${project.id}`} className="block">
                       <div className="flex items-center space-x-4 rounded-md border p-4 hover:bg-gray-50 dark:hover:bg-gray-900">
                         <div className="flex-1 space-y-1">
-                          <p className="font-medium">{project.project_title}</p>
+                          <p className="font-medium">{project.title || project.project_title || project.video_title || "Untitled Project"}</p>
                           <p className="text-sm text-gray-500 dark:text-gray-400">
-                            {isCreator
-                              ? `Editor: ${
-                                  project.editors && project.editors[0]?.editor?.name
-                                    ? project.editors[0].editor.name
-                                    : "Unassigned"
-                                }`
-                              : `Creator: ${project.owner?.name || "Unknown"}`}
+                            {project.description || "No description provided"}
                           </p>
                         </div>
                         <div
