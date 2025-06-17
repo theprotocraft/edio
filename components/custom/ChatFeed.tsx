@@ -17,14 +17,17 @@ interface ChatFeedProps {
   projectId: string
   initialMessages: Message[]
   userId: string
+  onMessageAdd?: (message: Message) => void
 }
 
-export function ChatFeed({ projectId, initialMessages, userId }: ChatFeedProps) {
+export function ChatFeed({ projectId, initialMessages, userId, onMessageAdd }: ChatFeedProps) {
   const [msgs, setMsgs] = useState<Message[]>(initialMessages)
+  const [lastMessageCount, setLastMessageCount] = useState(initialMessages.length)
   
   // Sync with external messages updates
   useEffect(() => {
     setMsgs(initialMessages)
+    setLastMessageCount(initialMessages.length)
   }, [initialMessages])
   const [newMessage, setNewMessage] = useState("")
   const [sending, setSending] = useState(false)
@@ -109,6 +112,12 @@ export function ChatFeed({ projectId, initialMessages, userId }: ChatFeedProps) 
                   } as Message
                   const updated = [...withoutOptimistic, messageWithYou]
                   console.log('Updated messages after replacing optimistic:', updated)
+                  
+                  // Update parent with the real message (defer to avoid render cycle issues)
+                  if (onMessageAdd) {
+                    setTimeout(() => onMessageAdd(messageWithYou), 0)
+                  }
+                  
                   return updated
                 }
                 
@@ -116,6 +125,12 @@ export function ChatFeed({ projectId, initialMessages, userId }: ChatFeedProps) 
                 console.log('Adding message from other user')
                 const updated = [...prev, fullMessage as Message]
                 console.log('Updated messages after adding other user message:', updated)
+                
+                // Update parent with the new message (defer to avoid render cycle issues)
+                if (onMessageAdd) {
+                  setTimeout(() => onMessageAdd(fullMessage as Message), 0)
+                }
+                
                 return updated
               })
             }
@@ -155,6 +170,57 @@ export function ChatFeed({ projectId, initialMessages, userId }: ChatFeedProps) 
       )
       .subscribe((status) => {
         console.log('Realtime subscription status:', status)
+        
+        // Handle connection status
+        if (status === 'SUBSCRIBED') {
+          console.log('✅ Successfully connected to realtime')
+        } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+          console.warn('❌ Realtime connection lost, status:', status)
+          console.log('🔄 Triggering immediate message sync...')
+          // Trigger immediate polling when realtime fails
+          setTimeout(async () => {
+            try {
+              const { data: latestMessages } = await supabase
+                .from("messages")
+                .select(`*, sender:users(id, name, email, avatar_url)`)
+                .eq("project_id", projectId)
+                .order("created_at", { ascending: true })
+
+              if (latestMessages && latestMessages.length > lastMessageCount) {
+                console.log(`📬 Recovered ${latestMessages.length - lastMessageCount} messages after connection loss`)
+                const newMessages = latestMessages.slice(lastMessageCount)
+                
+                newMessages.forEach((message) => {
+                  const formattedMessage = {
+                    ...message,
+                    sender: message.sender_id === userId 
+                      ? { ...message.sender, name: "You" }
+                      : message.sender
+                  } as Message
+
+                  setMsgs(prev => {
+                    const exists = prev.find(msg => msg.id === formattedMessage.id)
+                    if (!exists) {
+                      setTimeout(() => {
+                        if (onMessageAdd) {
+                          onMessageAdd(formattedMessage)
+                        }
+                      }, 0)
+                      return [...prev, formattedMessage]
+                    }
+                    return prev
+                  })
+                })
+                
+                setLastMessageCount(latestMessages.length)
+              }
+            } catch (error) {
+              console.error('Error syncing messages after connection loss:', error)
+            }
+          }, 1000)
+        } else if (status === 'TIMED_OUT') {
+          console.warn('⏰ Realtime connection timed out')
+        }
       })
 
     return () => {
@@ -162,6 +228,61 @@ export function ChatFeed({ projectId, initialMessages, userId }: ChatFeedProps) 
       channel.unsubscribe()
     }
   }, [supabase, projectId, userId])
+
+  // Fallback polling to ensure messages are synced (runs every 30 seconds)
+  useEffect(() => {
+    if (!supabase) return
+
+    const pollMessages = async () => {
+      try {
+        console.log('🔄 Polling for new messages...')
+        const { data: latestMessages } = await supabase
+          .from("messages")
+          .select(`
+            *,
+            sender:users(id, name, email, avatar_url)
+          `)
+          .eq("project_id", projectId)
+          .order("created_at", { ascending: true })
+
+        if (latestMessages && latestMessages.length > lastMessageCount) {
+          console.log(`📬 Found ${latestMessages.length - lastMessageCount} new messages via polling`)
+          const newMessages = latestMessages.slice(lastMessageCount)
+          
+          newMessages.forEach((message) => {
+            const formattedMessage = {
+              ...message,
+              sender: message.sender_id === userId 
+                ? { ...message.sender, name: "You" }
+                : message.sender
+            } as Message
+
+            setMsgs(prev => {
+              const exists = prev.find(msg => msg.id === formattedMessage.id)
+              if (!exists) {
+                if (onMessageAdd) {
+                  setTimeout(() => onMessageAdd(formattedMessage), 0)
+                }
+                return [...prev, formattedMessage]
+              }
+              return prev
+            })
+          })
+          
+          setLastMessageCount(latestMessages.length)
+        }
+      } catch (error) {
+        console.error('Error polling messages:', error)
+      }
+    }
+
+    // Poll every 30 seconds
+    const pollInterval = setInterval(pollMessages, 30000)
+
+    return () => {
+      clearInterval(pollInterval)
+    }
+  }, [supabase, projectId, userId, lastMessageCount, onMessageAdd])
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -196,6 +317,13 @@ export function ChatFeed({ projectId, initialMessages, userId }: ChatFeedProps) 
     setMsgs(prev => [...prev, optimisticMessage])
     setNewMessage("")
     console.log('💡 Optimistic message added, current msgs count:', msgs.length + 1)
+    
+    // Notify parent component about the new message (defer to avoid render cycle issues)
+    setTimeout(() => {
+      if (onMessageAdd) {
+        onMessageAdd(optimisticMessage)
+      }
+    }, 0)
 
     try {
       console.log('Sending message:', messageContent)
@@ -224,6 +352,27 @@ export function ChatFeed({ projectId, initialMessages, userId }: ChatFeedProps) 
       }, 2000)
       
       // The real message will replace the optimistic one via realtime subscription
+      // Also poll once after 5 seconds to ensure message was persisted
+      setTimeout(async () => {
+        try {
+          const { data: recentMessages } = await supabase
+            .from("messages")
+            .select("id, content")
+            .eq("project_id", projectId)
+            .eq("sender_id", userId)
+            .order("created_at", { ascending: false })
+            .limit(1)
+
+          if (recentMessages && recentMessages[0]?.content === messageContent) {
+            console.log('✅ Message confirmed in database via polling')
+          } else {
+            console.warn('⚠️ Message not found in database, real-time might be failing')
+          }
+        } catch (error) {
+          console.error('Error checking message persistence:', error)
+        }
+      }, 5000)
+      
     } catch (error: any) {
       // Remove optimistic message on error
       setMsgs(prev => prev.filter(msg => msg.id !== optimisticMessage.id))
