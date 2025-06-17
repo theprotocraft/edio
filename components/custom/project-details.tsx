@@ -150,6 +150,94 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
     }
   }, [userRole, toast])
 
+  // Create a reusable function to refresh channels
+  const refreshChannels = async () => {
+    if (userRole !== "youtuber") return
+    
+    setLoadingChannels(true)
+    try {
+      const response = await fetch('/api/youtube/channels')
+      if (!response.ok) {
+        throw new Error('Failed to fetch YouTube channels')
+      }
+      const data = await response.json()
+      setChannels(data.channels)
+      
+      toast({
+        title: "Channels refreshed",
+        description: "YouTube channels list has been updated.",
+      })
+    } catch (error) {
+      console.error('Error refreshing YouTube channels:', error)
+      toast({
+        title: "Error",
+        description: "Failed to refresh YouTube channels",
+        variant: "destructive",
+      })
+    } finally {
+      setLoadingChannels(false)
+    }
+  }
+
+  // Auto-refresh channels when user returns to the page (page visibility change)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden && userRole === "youtuber") {
+        // User returned to the page, refresh channels silently
+        const silentRefresh = async () => {
+          try {
+            const response = await fetch('/api/youtube/channels')
+            if (response.ok) {
+              const data = await response.json()
+              const newChannels = data.channels || []
+              
+              // Only update if there are actually new channels
+              if (newChannels.length !== channels.length) {
+                setChannels(newChannels)
+                toast({
+                  title: "New channels detected",
+                  description: "Your YouTube channels list has been updated.",
+                })
+              }
+            }
+          } catch (error) {
+            // Silent failure - don't show error for background refresh
+            console.log('Background channel refresh failed:', error)
+          }
+        }
+        
+        silentRefresh()
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+  }, [userRole, channels.length, toast])
+
+  // Auto-refresh channels when publish dialog opens (in case user added channels in another tab)
+  useEffect(() => {
+    if (publishDialogOpen && userRole === "youtuber") {
+      const silentChannelRefresh = async () => {
+        try {
+          const response = await fetch('/api/youtube/channels')
+          if (response.ok) {
+            const data = await response.json()
+            const newChannels = data.channels || []
+            
+            // Update channels if different
+            if (JSON.stringify(newChannels) !== JSON.stringify(channels)) {
+              setChannels(newChannels)
+            }
+          }
+        } catch (error) {
+          console.log('Silent channel refresh failed:', error)
+        }
+      }
+      
+      silentChannelRefresh()
+    }
+  }, [publishDialogOpen, userRole])
+
   // Fetch video versions when publish dialog opens
   useEffect(() => {
     if (publishDialogOpen) {
@@ -549,7 +637,23 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
                   name="youtubeChannel"
                   render={({ field }) => (
                     <FormItem className="space-y-2">
-                      <FormLabel>YouTube Channel</FormLabel>
+                      <div className="flex items-center justify-between">
+                        <FormLabel>YouTube Channel</FormLabel>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={refreshChannels}
+                          disabled={loadingChannels}
+                          className="h-auto p-1 text-xs text-muted-foreground hover:text-foreground"
+                        >
+                          {loadingChannels ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            "Refresh"
+                          )}
+                        </Button>
+                      </div>
                       <Select
                         value={field.value}
                         onValueChange={(value) => {
@@ -580,18 +684,25 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {channels.map((channel) => (
-                            <SelectItem key={channel.id} value={channel.id}>
-                              <div className="flex items-center">
-                                <img
-                                  src={channel.channel_thumbnail}
-                                  alt={channel.channel_name}
-                                  className="w-6 h-6 rounded-full mr-2"
-                                />
-                                <span>{channel.channel_name}</span>
-                              </div>
-                            </SelectItem>
-                          ))}
+                          {channels.length === 0 ? (
+                            <div className="p-4 text-center text-muted-foreground">
+                              <p className="text-sm">No YouTube channels connected</p>
+                              <p className="text-xs">Go to Settings to connect a channel</p>
+                            </div>
+                          ) : (
+                            channels.map((channel) => (
+                              <SelectItem key={channel.id} value={channel.id}>
+                                <div className="flex items-center">
+                                  <img
+                                    src={channel.channel_thumbnail}
+                                    alt={channel.channel_name}
+                                    className="w-6 h-6 rounded-full mr-2"
+                                  />
+                                  <span>{channel.channel_name}</span>
+                                </div>
+                              </SelectItem>
+                            ))
+                          )}
                         </SelectContent>
                       </Select>
                       <FormMessage />
