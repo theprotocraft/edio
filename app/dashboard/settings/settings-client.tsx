@@ -134,7 +134,7 @@ export function SettingsClient({ userData, youtubeChannels }: SettingsClientProp
                     >
                       <div className="flex items-center gap-4">
                         <Avatar className="h-12 w-12">
-                          <AvatarImage src={channel.channel_thumbnail || ""} alt={channel.channel_name} />
+                          {channel.channel_thumbnail && <AvatarImage src={channel.channel_thumbnail} alt={channel.channel_name} />}
                           <AvatarFallback>
                             {channel.channel_name.charAt(0).toUpperCase()}
                           </AvatarFallback>
@@ -142,7 +142,11 @@ export function SettingsClient({ userData, youtubeChannels }: SettingsClientProp
                         <div>
                           <h4 className="font-medium">{channel.channel_name}</h4>
                           <p className="text-sm text-muted-foreground">
-                            Connected on {new Date(channel.created_at).toLocaleDateString()}
+                            Connected on {new Date(channel.created_at).toLocaleDateString('en-US', { 
+                              year: 'numeric', 
+                              month: 'short', 
+                              day: 'numeric' 
+                            })}
                           </p>
                         </div>
                       </div>

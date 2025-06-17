@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -21,11 +22,17 @@ interface ConnectYouTubeDialogProps {
 export function ConnectYouTubeDialog({ open, onOpenChange }: ConnectYouTubeDialogProps) {
   const [loading, setLoading] = useState(false)
   const { toast } = useToast()
+  const supabase = createClientComponentClient()
 
   const handleConnect = async () => {
     setLoading(true)
     try {
-      const response = await fetch('/api/auth/youtube')
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        throw new Error('User not authenticated')
+      }
+
+      const response = await fetch(`/api/auth/youtube?userId=${user.id}`)
       if (!response.ok) {
         throw new Error('Failed to get YouTube auth URL')
       }

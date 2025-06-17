@@ -8,14 +8,14 @@ import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { useToast } from "@/hooks/use-toast"
 import { useSupabase } from "@/hooks/useUser"
-import { updateProject, uploadFile, getPresignedViewUrl } from "@/lib/api"
+import { updateProject, uploadFile, getPresignedViewUrl, deleteFile } from "@/lib/api"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Progress } from "@/components/ui/progress"
 import { Label } from "@/components/ui/label"
-import { ImageIcon, Upload, Loader2, Youtube } from "lucide-react"
+import { ImageIcon, Upload, Loader2, Youtube, Trash2 } from "lucide-react"
 import { formatFileSize } from "@/lib/utils"
 import Image from "next/image"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -71,6 +71,7 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
   const [uploadingThumbnail, setUploadingThumbnail] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null)
+  const [removingThumbnail, setRemovingThumbnail] = useState(false)
   const [channels, setChannels] = useState<YouTubeChannel[]>([])
   const [loadingChannels, setLoadingChannels] = useState(false)
   
@@ -246,6 +247,32 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
       setUploadProgress(0)
     } finally {
       setUploadingThumbnail(false)
+    }
+  }
+
+  const handleThumbnailRemove = async () => {
+    if (!thumbnailUpload) return
+
+    setRemovingThumbnail(true)
+    try {
+      await deleteFile(thumbnailUpload.id)
+      
+      // Refresh uploads to remove the thumbnail from the list
+      window.location.reload() // Simple refresh - you could implement a more elegant solution
+      
+      toast({
+        title: "Success",
+        description: "Thumbnail removed successfully.",
+      })
+    } catch (error: any) {
+      console.error("Error removing thumbnail:", error)
+      toast({
+        title: "Error",
+        description: "Failed to remove thumbnail.",
+        variant: "destructive",
+      })
+    } finally {
+      setRemovingThumbnail(false)
     }
   }
 
@@ -472,11 +499,26 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
                           </div>
                         </div>
                       )}
-                      <div>
+                      <div className="flex-1">
                         <p className="text-sm font-medium">{thumbnailUpload.file_name}</p>
                         <p className="text-xs text-muted-foreground">Uploaded: {new Date(thumbnailUpload.created_at).toLocaleDateString()}</p>
                         <p className="text-xs text-muted-foreground">Size: {formatFileSize(thumbnailUpload.file_size)}</p>
                       </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={handleThumbnailRemove}
+                        disabled={removingThumbnail}
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                      >
+                        {removingThumbnail ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-4 w-4" />
+                        )}
+                        {removingThumbnail ? "Removing..." : "Remove"}
+                      </Button>
                     </div>
                     
                     <div className="mt-4 pt-4 border-t">
@@ -617,20 +659,13 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
                   onValueChange={setSelectedVersionId}
                   disabled={loadingVersions}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="w-full">
                     <SelectValue>
                       {selectedVersionId ? (
                         (() => {
                           const selectedVersion = videoVersions.find(v => v.id === selectedVersionId)
                           return selectedVersion ? (
-                            <div className="flex flex-col items-start text-left">
-                              <span>Version {selectedVersion.version_number}</span>
-                              <span className="text-xs text-muted-foreground">
-                                {new Date(selectedVersion.created_at).toLocaleDateString()} 
-                                {selectedVersion.uploader?.name && ` • by ${selectedVersion.uploader.name}`}
-                                {selectedVersion.notes && ` • ${selectedVersion.notes}`}
-                              </span>
-                            </div>
+                            `Version ${selectedVersion.version_number} • ${new Date(selectedVersion.created_at).toLocaleDateString()}`
                           ) : "Select a video version"
                         })()
                       ) : "Select a video version"}
@@ -661,18 +696,13 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
                 value={selectedPrivacyStatus}
                 onValueChange={setSelectedPrivacyStatus}
               >
-                <SelectTrigger>
+                <SelectTrigger className="w-full">
                   <SelectValue>
                     {selectedPrivacyStatus ? (
                       (() => {
                         const selectedOption = privacyOptions.find(option => option.value === selectedPrivacyStatus)
                         return selectedOption ? (
-                          <div className="flex flex-col items-start text-left">
-                            <span>{selectedOption.label}</span>
-                            <span className="text-xs text-muted-foreground">
-                              {selectedOption.description}
-                            </span>
-                          </div>
+                          `${selectedOption.label} - ${selectedOption.description}`
                         ) : "Select privacy setting"
                       })()
                     ) : "Select privacy setting"}

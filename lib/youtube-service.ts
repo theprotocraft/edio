@@ -158,14 +158,23 @@ export async function uploadVideoToYouTubeByChannel({
         thumbnailStream.push(null)
 
         // Upload thumbnail
-        await youtube.thumbnails.set({
-          videoId: uploadResponse.data.id,
-          media: {
-            body: thumbnailStream,
-          },
-        })
+        try {
+          await youtube.thumbnails.set({
+            videoId: uploadResponse.data.id,
+            media: {
+              body: thumbnailStream,
+            },
+          })
+          console.log('Thumbnail uploaded successfully')
+        } catch (thumbnailError: any) {
+          console.error('Error uploading thumbnail:', thumbnailError.message)
+          // Don't throw - thumbnail upload failure shouldn't fail the whole process
+          if (thumbnailError.code === 403) {
+            console.log('Thumbnail upload requires additional permissions. Video uploaded without custom thumbnail.')
+          }
+        }
       } catch (error) {
-        console.error('Error uploading thumbnail:', error)
+        console.error('Error processing thumbnail:', error)
         // Don't throw error here, as the video was uploaded successfully
       }
     }
