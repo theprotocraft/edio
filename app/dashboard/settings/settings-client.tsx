@@ -8,6 +8,16 @@ import { Pencil, Trash2 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { EditProfileDialog } from "@/components/edit-profile-dialog"
 import { ConnectYouTubeDialog } from "@/components/connect-youtube-dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 interface SettingsClientProps {
   userData: {
@@ -27,11 +37,20 @@ interface SettingsClientProps {
 export function SettingsClient({ userData, youtubeChannels }: SettingsClientProps) {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [isConnectDialogOpen, setIsConnectDialogOpen] = useState(false)
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [channelToDelete, setChannelToDelete] = useState<string | null>(null)
   const { toast } = useToast()
 
-  const handleDisconnectChannel = async (channelId: string) => {
+  const handleDisconnectChannel = (channelId: string) => {
+    setChannelToDelete(channelId)
+    setDeleteConfirmOpen(true)
+  }
+
+  const confirmDisconnectChannel = async () => {
+    if (!channelToDelete) return
+
     try {
-      const response = await fetch(`/api/youtube/channels/${channelId}`, {
+      const response = await fetch(`/api/youtube/channels/${channelToDelete}`, {
         method: 'DELETE',
       })
 
@@ -53,6 +72,9 @@ export function SettingsClient({ userData, youtubeChannels }: SettingsClientProp
         description: "Failed to disconnect YouTube channel",
         variant: "destructive",
       })
+    } finally {
+      setDeleteConfirmOpen(false)
+      setChannelToDelete(null)
     }
   }
 
@@ -176,6 +198,28 @@ export function SettingsClient({ userData, youtubeChannels }: SettingsClientProp
         open={isConnectDialogOpen}
         onOpenChange={setIsConnectDialogOpen}
       />
+
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Disconnect YouTube Channel</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to disconnect this YouTube channel? This action cannot be undone and you will need to reconnect the channel if you want to use it again.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setDeleteConfirmOpen(false)}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={confirmDisconnectChannel}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Disconnect Channel
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 } 
