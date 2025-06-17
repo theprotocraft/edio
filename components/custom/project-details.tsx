@@ -83,6 +83,9 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
   const [selectedVersionId, setSelectedVersionId] = useState<string>("")
   const [selectedPrivacyStatus, setSelectedPrivacyStatus] = useState<string>("private")
   
+  // Track if there are unsaved changes
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  
   const router = useRouter()
   const { toast } = useToast()
   const { user } = useSupabase()
@@ -188,6 +191,56 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
       youtubeChannel: project.youtube_channel_id || "",
     },
   })
+
+  // Watch for form changes to enable publish button and track unsaved changes
+  const watchedValues = form.watch()
+  const selectedChannel = watchedValues.youtubeChannel
+
+  // Fetch video versions whenever the component mounts or when needed
+  const fetchVideoVersions = async () => {
+    if (!project.id) return []
+    
+    setLoadingVersions(true)
+    try {
+      const response = await fetch(`/api/projects/${project.id}/versions`)
+      if (!response.ok) {
+        throw new Error('Failed to fetch video versions')
+      }
+      const data = await response.json()
+      const versions = data.versions || []
+      setVideoVersions(versions)
+      
+      // Auto-select the latest version if none selected
+      if (versions.length > 0 && !selectedVersionId) {
+        setSelectedVersionId(versions[0].id)
+      }
+      
+      return versions
+    } catch (error) {
+      console.error('Error fetching video versions:', error)
+      return []
+    } finally {
+      setLoadingVersions(false)
+    }
+  }
+
+  // Check if publishing is possible (reactive)
+  const canPublish = selectedChannel && videoVersions.length > 0 && userRole === "youtuber"
+
+  // Track form changes
+  useEffect(() => {
+    const subscription = form.watch((value, { name, type }) => {
+      if (type === 'change') {
+        setHasUnsavedChanges(true)
+      }
+    })
+    return () => subscription.unsubscribe()
+  }, [form.watch])
+
+  // Fetch video versions on mount and when project changes
+  useEffect(() => {
+    fetchVideoVersions()
+  }, [project.id])
 
   const handleThumbnailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -314,7 +367,11 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
   }
 
   const handlePublishToYouTube = async () => {
-    if (!project.youtube_channel_id) {
+    // Get current form values
+    const formData = form.getValues()
+    const currentChannel = formData.youtubeChannel
+
+    if (!currentChannel) {
       toast({
         title: "No channel selected",
         description: "Please select a YouTube channel before publishing.",
@@ -323,7 +380,25 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
       return
     }
 
-    if (!selectedVersionId) {
+    // Refresh video versions to get the latest
+    const latestVersions = await fetchVideoVersions()
+    if (latestVersions.length === 0) {
+      toast({
+        title: "No video versions",
+        description: "Please upload a video version before publishing.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    // Auto-select latest version if none selected
+    let versionToPublish = selectedVersionId
+    if (!versionToPublish && latestVersions.length > 0) {
+      versionToPublish = latestVersions[0].id
+      setSelectedVersionId(versionToPublish)
+    }
+
+    if (!versionToPublish) {
       toast({
         title: "No version selected",
         description: "Please select a video version to publish.",
@@ -334,14 +409,43 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
 
     setPublishing(true)
     try {
-      // First save any pending changes
-      const formData = form.getValues()
+      // First, always save any pending changes
       await updateProject(project.id, {
         title: project.project_title,
         videoTitle: formData.videoTitle,
         description: formData.description,
-        youtube_channel_id: formData.youtubeChannel,
+        youtube_channel_id: currentChannel,
       })
+
+      setHasUnsavedChanges(false)
+
+      // Auto-upload thumbnail if one is selected but not uploaded
+      if (selectedThumbnail && !thumbnailUpload) {
+        toast({
+          title: "Uploading thumbnail",
+          description: "Uploading your selected thumbnail before publishing...",
+        })
+
+        try {
+          await uploadFile({
+            file: selectedThumbnail,
+            projectId: project.id,
+            onProgress: (progress) => setUploadProgress(progress),
+          })
+
+          // Clear the selected thumbnail since it's now uploaded
+          setSelectedThumbnail(null)
+          setUploadProgress(0)
+        } catch (error: any) {
+          console.error("Error auto-uploading thumbnail:", error)
+          // Don't fail the publish process for thumbnail upload errors
+          toast({
+            title: "Thumbnail upload failed",
+            description: "Continuing with video publish without thumbnail.",
+            variant: "destructive",
+          })
+        }
+      }
 
       const response = await fetch(`/api/projects/${project.id}/publish`, {
         method: 'POST',
@@ -349,7 +453,7 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          versionId: selectedVersionId,
+          versionId: versionToPublish,
           privacyStatus: selectedPrivacyStatus,
         }),
       })
@@ -374,6 +478,25 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
       })
     } finally {
       setPublishing(false)
+    }
+  }
+
+  // Auto-save when channel selection changes
+  const handleChannelChange = async (value: string) => {
+    form.setValue('youtubeChannel', value)
+    
+    // Auto-save the channel selection
+    try {
+      await updateProject(project.id, {
+        youtube_channel_id: value,
+      })
+      
+      toast({
+        title: "Channel updated",
+        description: "YouTube channel selection saved.",
+      })
+    } catch (error) {
+      console.error('Error saving channel selection:', error)
     }
   }
 
@@ -429,7 +552,10 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
                       <FormLabel>YouTube Channel</FormLabel>
                       <Select
                         value={field.value}
-                        onValueChange={field.onChange}
+                        onValueChange={(value) => {
+                          field.onChange(value)
+                          handleChannelChange(value)
+                        }}
                         disabled={loadingChannels}
                       >
                         <FormControl>
@@ -615,18 +741,33 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
                 disabled={loading}
                 className="rounded-2xl shadow-md transition-transform active:scale-[0.98]"
               >
-                {loading ? "Saving..." : "Save Changes"}
+                {loading ? "Saving..." : hasUnsavedChanges ? "Save Changes*" : "Save Changes"}
               </Button>
 
               {userRole === "youtuber" && (
                 <Button
                   type="button"
-                  onClick={() => setPublishDialogOpen(true)}
-                  disabled={!project.youtube_channel_id}
-                  className="bg-red-600 hover:bg-red-700 text-white rounded-2xl shadow-md transition-transform active:scale-[0.98]"
+                  onClick={() => {
+                    if (canPublish) {
+                      setPublishDialogOpen(true)
+                    } else {
+                      toast({
+                        title: "Cannot publish yet",
+                        description: !selectedChannel 
+                          ? "Please select a YouTube channel first."
+                          : "Please upload a video version first.",
+                        variant: "destructive",
+                      })
+                    }
+                  }}
+                  disabled={!canPublish}
+                  className="bg-red-600 hover:bg-red-700 text-white rounded-2xl shadow-md transition-transform active:scale-[0.98] disabled:opacity-50"
                 >
                   <Youtube className="mr-2 h-4 w-4" />
                   Publish to YouTube
+                  {selectedThumbnail && !thumbnailUpload && " + Thumbnail"}
+                  {!canPublish && !selectedChannel && " (Select Channel)"}
+                  {!canPublish && selectedChannel && videoVersions.length === 0 && " (Upload Video)"}
                 </Button>
               )}
             </CardFooter>
@@ -640,7 +781,10 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
           <DialogHeader>
             <DialogTitle>Publish to YouTube</DialogTitle>
             <DialogDescription>
-              Select the video version and privacy settings for your YouTube upload.
+              {videoVersions.length === 1 
+                ? "Ready to publish your video to YouTube with the settings below."
+                : "Select the video version and privacy settings for your YouTube upload."
+              }
             </DialogDescription>
           </DialogHeader>
           
@@ -652,6 +796,27 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
                 <div className="flex items-center justify-center py-4">
                   <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                   <span className="ml-2 text-sm">Loading versions...</span>
+                </div>
+              ) : videoVersions.length === 0 ? (
+                <div className="text-center py-4 text-muted-foreground">
+                  <p>No video versions found.</p>
+                  <p className="text-xs">Please upload a video version first.</p>
+                </div>
+              ) : videoVersions.length === 1 ? (
+                <div className="p-3 bg-muted rounded-md">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="font-medium">Version {videoVersions[0].version_number}</span>
+                      <p className="text-xs text-muted-foreground">
+                        {new Date(videoVersions[0].created_at).toLocaleDateString()}
+                        {videoVersions[0].uploader?.name && ` • by ${videoVersions[0].uploader.name}`}
+                      </p>
+                      {videoVersions[0].notes && (
+                        <p className="text-xs text-muted-foreground mt-1">{videoVersions[0].notes}</p>
+                      )}
+                    </div>
+                    <div className="text-xs text-green-600 font-medium">Selected</div>
+                  </div>
                 </div>
               ) : (
                 <Select
@@ -734,7 +899,7 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
             </Button>
             <Button
               onClick={handlePublishToYouTube}
-              disabled={publishing || !selectedVersionId || loadingVersions}
+              disabled={publishing || (videoVersions.length > 1 && !selectedVersionId) || loadingVersions}
               className="bg-red-600 hover:bg-red-700 text-white"
             >
               {publishing ? (
