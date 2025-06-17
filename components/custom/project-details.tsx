@@ -427,47 +427,62 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
                   render={({ field }) => (
                     <FormItem className="space-y-2">
                       <FormLabel>YouTube Channel</FormLabel>
-                      <Select
-                        value={field.value}
-                        onValueChange={field.onChange}
-                        disabled={loadingChannels}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue>
-                              {field.value ? (
-                                (() => {
-                                  const selectedChannel = channels.find(channel => channel.id === field.value)
-                                  return selectedChannel ? (
-                                    <div className="flex items-center">
-                                      <img
-                                        src={selectedChannel.channel_thumbnail}
-                                        alt={selectedChannel.channel_name}
-                                        className="w-6 h-6 rounded-full mr-2"
-                                      />
-                                      <span>{selectedChannel.channel_name}</span>
-                                    </div>
-                                  ) : "Select YouTube channel"
-                                })()
-                              ) : "Select YouTube channel"}
-                            </SelectValue>
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {channels.map((channel) => (
-                            <SelectItem key={channel.id} value={channel.id}>
-                              <div className="flex items-center">
-                                <img
-                                  src={channel.channel_thumbnail}
-                                  alt={channel.channel_name}
-                                  className="w-6 h-6 rounded-full mr-2"
-                                />
-                                <span>{channel.channel_name}</span>
-                              </div>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      {channels.length === 0 ? (
+                        <div className="p-4 border rounded-md bg-muted/30">
+                          <p className="text-sm text-muted-foreground text-center">
+                            No YouTube channels linked. Please add a channel from{" "}
+                            <a 
+                              href="/dashboard/settings" 
+                              className="text-primary hover:underline font-medium"
+                            >
+                              Settings
+                            </a>
+                            .
+                          </p>
+                        </div>
+                      ) : (
+                        <Select
+                          value={field.value}
+                          onValueChange={field.onChange}
+                          disabled={loadingChannels}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue>
+                                {field.value ? (
+                                  (() => {
+                                    const selectedChannel = channels.find(channel => channel.id === field.value)
+                                    return selectedChannel ? (
+                                      <div className="flex items-center">
+                                        <img
+                                          src={selectedChannel.channel_thumbnail}
+                                          alt={selectedChannel.channel_name}
+                                          className="w-6 h-6 rounded-full mr-2"
+                                        />
+                                        <span>{selectedChannel.channel_name}</span>
+                                      </div>
+                                    ) : "Select YouTube channel"
+                                  })()
+                                ) : "Select YouTube channel"}
+                              </SelectValue>
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {channels.map((channel) => (
+                              <SelectItem key={channel.id} value={channel.id}>
+                                <div className="flex items-center">
+                                  <img
+                                    src={channel.channel_thumbnail}
+                                    alt={channel.channel_name}
+                                    className="w-6 h-6 rounded-full mr-2"
+                                  />
+                                  <span>{channel.channel_name}</span>
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
                       <FormMessage />
                     </FormItem>
                   )}
