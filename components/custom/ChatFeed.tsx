@@ -272,7 +272,7 @@ export function ChatFeed({ projectId, initialMessages, userId }: ChatFeedProps) 
                 >
                   <div className={`flex max-w-[80%] ${message.sender_id === userId ? "flex-row-reverse" : "flex-row"}`}>
                     <Avatar className={`h-8 w-8 ${message.sender_id === userId ? "ml-2" : "mr-2"}`}>
-                      <AvatarImage src={message.sender?.avatar_url || ""} alt={message.sender?.name || "User"} />
+                      <AvatarImage src={"You"} alt={message.sender?.name || "User"} />
                       <AvatarFallback 
                         className={`font-semibold text-white ${
                           message.sender_id === userId 
