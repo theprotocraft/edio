@@ -44,13 +44,6 @@ export default async function OverviewPage() {
               </Button>
             </Link>
           )}
-          {isCreator && (
-            <Link href="/dashboard/projects/new">
-              <Button className="rounded-2xl shadow-md transition-transform active:scale-[0.98]">
-                <Plus className="mr-2 h-4 w-4" /> New Project
-              </Button>
-            </Link>
-          )}
         </div>
 
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
@@ -118,18 +111,14 @@ export default async function OverviewPage() {
               ) : (
                 <div className="flex flex-col items-center justify-center h-40 text-center">
                   <p className="text-muted-foreground mb-4">
-                    {isCreator ? "
                     {isCreator ? "No projects yet" : "No projects assigned yet"}
-                  " : "No projects assigned yet"}
                   </p>
                   {isCreator && (
-                    {isCreator && (
                     <Link href="/dashboard/projects/new">
-                        <Button className="rounded-2xl shadow-md transition-transform active:scale-[0.98]">
-                          <Plus className="mr-2 h-4 w-4" /> Create Project
-                        </Button>
-                      </Link>
-                  )}
+                      <Button className="rounded-2xl shadow-md transition-transform active:scale-[0.98]">
+                        <Plus className="mr-2 h-4 w-4" /> Create Project
+                      </Button>
+                    </Link>
                   )}
                 </div>
               )}

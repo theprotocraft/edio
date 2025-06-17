@@ -26,15 +26,8 @@ export async function fetchProject(id: string) {
 export async function createProject({
   projectTitle,
   videoTitle,
-export async function createProject({
-  projectTitle,
-  videoTitle,
   description,
   file,
-  selectedEditors = [],
-  onProgress,
-}: {
-  projectTitle: string;
   selectedEditors = [],
   onProgress,
 }: {
@@ -44,7 +37,6 @@ export async function createProject({
   file: File;
   selectedEditors?: string[];
   onProgress?: (progress: number) => void;
-}) {
 }) {
   try {
     // Step 1: Get a presigned URL for the video upload
@@ -90,13 +82,9 @@ export async function createProject({
 
     if (!response.ok) {
       const errorData = await response.json()
-    if (!response.ok) {
-      const errorData = await response.json()
       throw new Error(errorData.error || "Failed to create project")
     }
 
-    const result = await response.json()
-    return result
     const result = await response.json()
     return result
   } catch (error: any) {
