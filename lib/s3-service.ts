@@ -163,10 +163,10 @@ export async function generatePresignedViewUrl(request: GetPresignedViewUrlReque
     const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY
 
     if (!bucketName || !region || !accessKeyId || !secretAccessKey) {
-      console.error("Missing AWS environment variables")
+      console.warn("AWS credentials not configured, presigned URLs unavailable")
       return {
         presignedUrl: "",
-        error: "Server configuration error: Missing AWS credentials",
+        error: "Presigned URLs not available - AWS not configured",
       }
     }
 

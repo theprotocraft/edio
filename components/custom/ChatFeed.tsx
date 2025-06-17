@@ -21,6 +21,11 @@ interface ChatFeedProps {
 
 export function ChatFeed({ projectId, initialMessages, userId }: ChatFeedProps) {
   const [msgs, setMsgs] = useState<Message[]>(initialMessages)
+  
+  // Sync with external messages updates
+  useEffect(() => {
+    setMsgs(initialMessages)
+  }, [initialMessages])
   const [newMessage, setNewMessage] = useState("")
   const [sending, setSending] = useState(false)
   const router = useRouter()
@@ -306,7 +311,6 @@ export function ChatFeed({ projectId, initialMessages, userId }: ChatFeedProps) 
                               : "bg-muted text-foreground"
                         }`}
                       >
-                        {message.type === "feedback" && <div className="font-medium mb-1 text-sm">Feedback:</div>}
                         <p className="text-sm">{message.content}</p>
                       </div>
                       

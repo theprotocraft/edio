@@ -92,9 +92,10 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
 
   // Get presigned URL for thumbnail
   useEffect(() => {
-    if (thumbnailUpload?.file_url) {
+    if (thumbnailUpload?.file_url && user) {
       const getUrl = async () => {
         try {
+          console.log("Getting presigned URL for thumbnail with authenticated user");
           const presignedUrl = await getPresignedViewUrl(thumbnailUpload.file_url);
           console.log("Thumbnail presigned URL:", presignedUrl);
           
@@ -107,17 +108,21 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
           }
         } catch (error) {
           console.error("Failed to get presigned URL for thumbnail:", error);
-          // Use the original URL as fallback
+          // Use the original URL as fallback and continue without breaking
           setThumbnailUrl(thumbnailUpload.file_url);
         }
       };
       
       getUrl();
+    } else if (thumbnailUpload?.file_url && !user) {
+      // If no user is authenticated yet, just use the original URL
+      console.log("No authenticated user, using original thumbnail URL");
+      setThumbnailUrl(thumbnailUpload.file_url);
     } else {
       // Reset thumbnail URL if no upload
       setThumbnailUrl(null);
     }
-  }, [thumbnailUpload]);
+  }, [thumbnailUpload, user]);
 
   // Fetch YouTube channels on component mount
   useEffect(() => {

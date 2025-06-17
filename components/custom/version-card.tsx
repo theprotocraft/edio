@@ -44,6 +44,7 @@ interface VersionCardProps {
   onPreview: () => void
   onFeedback?: () => void
   uploaderName?: string
+  onProjectUpdate?: (updates: any) => void
 }
 
 export function VersionCard({ 
@@ -52,7 +53,8 @@ export function VersionCard({
   userRole, 
   onPreview, 
   onFeedback,
-  uploaderName 
+  uploaderName,
+  onProjectUpdate
 }: VersionCardProps) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [finalDialogOpen, setFinalDialogOpen] = useState(false)
@@ -60,7 +62,7 @@ export function VersionCard({
   const router = useRouter()
   const { toast } = useToast()
 
-  const isCreator = userRole === "creator"
+  const isCreator = userRole === "youtuber"
   const isOwner = version.uploader_id === project.owner_id
   const isFinal = project.final_version_number === version.version_number
   const canDelete = (isCreator && isOwner) || (!isCreator && !isOwner)
@@ -71,12 +73,20 @@ export function VersionCard({
     try {
       await updateProject(project.id, { finalVersionNumber: version.version_number })
       
+      // Update project state immediately for faster UI response
+      if (onProjectUpdate) {
+        onProjectUpdate({ final_version_number: version.version_number })
+      }
+      
       toast({
         title: "Final version set",
         description: `Version ${version.version_number} has been marked as the final version.`,
       })
       
-      router.refresh()
+      // Fallback to router refresh if no callback provided
+      if (!onProjectUpdate) {
+        router.refresh()
+      }
     } catch (error: any) {
       toast({
         title: "Error",
