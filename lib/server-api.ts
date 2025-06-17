@@ -57,7 +57,6 @@ export async function fetchDashboardData() {
     const projects = [
       ...(ownedProjects || []),
       ...assignedProjectsList
-      ...assignedProjectsList
     ].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
       .slice(0, 4);
 
@@ -140,7 +139,6 @@ export async function fetchProjects() {
     // Combine projects
     const projects = [
       ...(ownedProjects || []),
-      ...assignedProjectsList
       ...assignedProjectsList
     ].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
 
