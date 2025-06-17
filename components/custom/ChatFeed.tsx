@@ -388,6 +388,13 @@ export function ChatFeed({ projectId, initialMessages, userId, onMessageAdd }: C
     }
   }
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handleSendMessage(e as any)
+    }
+  }
+
   const formatMessageTime = (timestamp: string) => {
     const date = new Date(timestamp)
     return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
@@ -491,6 +498,7 @@ export function ChatFeed({ projectId, initialMessages, userId, onMessageAdd }: C
             placeholder="Type your message..."
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
+            onKeyDown={handleKeyDown}
             className="min-h-[80px] flex-1 resize-none"
           />
           <Button
