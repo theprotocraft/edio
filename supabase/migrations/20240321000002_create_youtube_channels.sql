@@ -32,4 +32,12 @@ CREATE POLICY "Users can delete their own channels"
     USING (auth.uid() = user_id);
 
 -- Add comment
+COMMENT ON TABLE youtube_channels IS 'Stores YouTube channels associated with users';
+
+-- Add missing columns if they don't exist
+ALTER TABLE youtube_channels 
+ADD COLUMN IF NOT EXISTS title TEXT,
+ADD COLUMN IF NOT EXISTS thumbnail_url TEXT;
+
+-- Update the comment
 COMMENT ON TABLE youtube_channels IS 'Stores YouTube channels associated with users'; 
