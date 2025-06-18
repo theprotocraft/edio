@@ -658,7 +658,6 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
                   name="youtubeChannel"
                   render={({ field }) => (
                     <FormItem className="space-y-2">
-<<<<<<< fix/17-06
                       <FormLabel>YouTube Channel</FormLabel>
                       {channels.length === 0 ? (
                         <div className="p-4 border rounded-md bg-muted/30">
@@ -702,62 +701,6 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
                           </FormControl>
                           <SelectContent>
                             {channels.map((channel) => (
-=======
-                      <div className="flex items-center justify-between">
-                        <FormLabel>YouTube Channel</FormLabel>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={refreshChannels}
-                          disabled={loadingChannels}
-                          className="h-auto p-1 text-xs text-muted-foreground hover:text-foreground"
-                        >
-                          {loadingChannels ? (
-                            <Loader2 className="h-3 w-3 animate-spin" />
-                          ) : (
-                            "Refresh"
-                          )}
-                        </Button>
-                      </div>
-                      <Select
-                        value={field.value}
-                        onValueChange={(value) => {
-                          field.onChange(value)
-                          handleChannelChange(value)
-                        }}
-                        disabled={loadingChannels}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue>
-                              {field.value ? (
-                                (() => {
-                                  const selectedChannel = channels.find(channel => channel.id === field.value)
-                                  return selectedChannel ? (
-                                    <div className="flex items-center">
-                                      <img
-                                        src={selectedChannel.channel_thumbnail}
-                                        alt={selectedChannel.channel_name}
-                                        className="w-6 h-6 rounded-full mr-2"
-                                      />
-                                      <span>{selectedChannel.channel_name}</span>
-                                    </div>
-                                  ) : "Select YouTube channel"
-                                })()
-                              ) : "Select YouTube channel"}
-                            </SelectValue>
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {channels.length === 0 ? (
-                            <div className="p-4 text-center text-muted-foreground">
-                              <p className="text-sm">No YouTube channels connected</p>
-                              <p className="text-xs">Go to Settings to connect a channel</p>
-                            </div>
-                          ) : (
-                            channels.map((channel) => (
->>>>>>> main
                               <SelectItem key={channel.id} value={channel.id}>
                                 <div className="flex items-center">
                                   <img
@@ -768,17 +711,10 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
                                   <span>{channel.channel_name}</span>
                                 </div>
                               </SelectItem>
-<<<<<<< fix/17-06
                             ))}
                           </SelectContent>
                         </Select>
                       )}
-=======
-                            ))
-                          )}
-                        </SelectContent>
-                      </Select>
->>>>>>> main
                       <FormMessage />
                     </FormItem>
                   )}
