@@ -8,7 +8,9 @@ import { encrypt, decrypt } from '@/lib/encryption'
 export async function getYouTubeClientByChannel(channelId: string) {
   const supabase = await createServerClient()
   
-  // Get YouTube channel and tokens by channel ID
+  console.log('🔍 Looking up YouTube channel with ID:', channelId)
+  
+  // Get YouTube channel and tokens by database ID (not channel_id)
   const { data: channel, error } = await supabase
     .from('youtube_channels')
     .select('*')
@@ -16,6 +18,7 @@ export async function getYouTubeClientByChannel(channelId: string) {
     .single()
 
   if (error) {
+    console.error('❌ Database error fetching channel:', error)
     if (error.code === 'PGRST116') {
       throw new Error('No YouTube channel connected')
     }
@@ -23,9 +26,16 @@ export async function getYouTubeClientByChannel(channelId: string) {
   }
 
   if (!channel) {
+    console.error('❌ No channel found in database')
     throw new Error('No YouTube channel connected')
   }
 
+  console.log('✅ Found channel:', channel.channel_name)
+  console.log('🔑 Environment variables check:', {
+    hasClientId: !!process.env.NEXT_PUBLIC_YOUTUBE_CLIENT_ID,
+    hasClientSecret: !!process.env.YOUTUBE_CLIENT_SECRET,
+    clientIdLength: process.env.NEXT_PUBLIC_YOUTUBE_CLIENT_ID?.length || 0
+  })
 
   // Create OAuth2 client
   const oauth2Client = new google.auth.OAuth2(
@@ -37,13 +47,22 @@ export async function getYouTubeClientByChannel(channelId: string) {
   const tokenExpiresAt = new Date(channel.token_expires_at)
   const oneHourFromNow = new Date(Date.now() + 60 * 60 * 1000)
   
+  console.log('⏰ Token expiry check:', {
+    tokenExpiresAt: tokenExpiresAt.toISOString(),
+    oneHourFromNow: oneHourFromNow.toISOString(),
+    isExpired: tokenExpiresAt <= oneHourFromNow
+  })
+  
   if (!channel.access_token || !channel.refresh_token) {
+    console.error('❌ Missing tokens in database')
     throw new Error('Invalid YouTube channel tokens')
   }
   
   let accessToken = decrypt(channel.access_token)
+  console.log('🔓 Decrypted access token length:', accessToken?.length || 0)
   
   if (tokenExpiresAt <= oneHourFromNow) {
+    console.log('🔄 Refreshing expired token...')
     // Refresh the token if it's expired or about to expire
     accessToken = await refreshYouTubeTokenByChannel(channelId)
   }
@@ -53,6 +72,8 @@ export async function getYouTubeClientByChannel(channelId: string) {
     access_token: accessToken,
     refresh_token: decrypt(channel.refresh_token)
   })
+
+  console.log('✅ OAuth2 client configured successfully')
 
   // Create and return YouTube client with auth
   const youtube = google.youtube('v3')
@@ -189,11 +210,11 @@ export async function uploadVideoToYouTubeByChannel({
 export async function refreshYouTubeTokenByChannel(channelId: string) {
   const supabase = await createServerClient()
   
-  // Get channel data by channel ID
+  // Get channel data by database ID (not channel_id field)
   const { data: channel, error } = await supabase
     .from('youtube_channels')
     .select('*')
-    .eq('channel_id', channelId)
+    .eq('id', channelId)
     .single()
 
   if (error || !channel) {
@@ -234,7 +255,7 @@ export async function refreshYouTubeTokenByChannel(channelId: string) {
         token_expires_at: expiresAt.toISOString(),
         updated_at: new Date().toISOString(),
       })
-      .eq('channel_id', channelId)
+      .eq('id', channelId)
 
     // Return the decrypted access token for immediate use
     return credentials.access_token

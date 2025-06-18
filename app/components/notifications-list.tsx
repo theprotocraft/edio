@@ -1,14 +1,16 @@
 "use client"
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { NotificationActions } from "./notification-actions"
+import { NotificationItem } from "./notification-item"
+import { useRouter } from "next/navigation"
 
 interface Notification {
   id: string
   type: string
   message: string
   created_at: string
-  invite_id: string
+  metadata: any
+  read: boolean
 }
 
 interface NotificationsListProps {
@@ -16,6 +18,8 @@ interface NotificationsListProps {
 }
 
 export function NotificationsList({ notifications }: NotificationsListProps) {
+  const router = useRouter()
+
   return (
     <Card className="col-span-1">
       <CardHeader>
@@ -26,21 +30,11 @@ export function NotificationsList({ notifications }: NotificationsListProps) {
         {notifications && notifications.length > 0 ? (
           <div className="space-y-4">
             {notifications.map((notification) => (
-              <div key={notification.id} className="flex items-start space-x-4 rounded-md border p-4">
-                <div className="flex-1 space-y-1">
-                  <p className="font-medium">{notification.type}</p>
-                  <p className="text-sm text-muted-foreground">{notification.message}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {new Date(notification.created_at).toISOString().split('T')[0]}
-                  </p>
-                  {notification.type === 'editor_invite' && (
-                    <NotificationActions 
-                      notificationId={notification.id}
-                      inviteId={notification.invite_id}
-                    />
-                  )}
-                </div>
-              </div>
+              <NotificationItem 
+                key={notification.id}
+                notification={notification}
+                onActionComplete={() => router.refresh()}
+              />
             ))}
           </div>
         ) : (
@@ -51,4 +45,4 @@ export function NotificationsList({ notifications }: NotificationsListProps) {
       </CardContent>
     </Card>
   )
-} 
+}
