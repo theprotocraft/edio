@@ -17,16 +17,109 @@ interface ChatFeedProps {
   projectId: string
   initialMessages: Message[]
   userId: string
+  onMessageAdd?: (message: Message) => void
 }
 
-export function ChatFeed({ projectId, initialMessages, userId }: ChatFeedProps) {
+export function ChatFeed({ projectId, initialMessages, userId, onMessageAdd }: ChatFeedProps) {
   const [msgs, setMsgs] = useState<Message[]>(initialMessages)
+  const [lastMessageCount, setLastMessageCount] = useState(initialMessages.length)
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default')
+  const [notifiedMessageIds, setNotifiedMessageIds] = useState<Set<string>>(new Set())
+  
+  // Synchronous deduplication (faster than React state)
+  const notifiedIdsRef = useRef<Set<string>>(new Set())
+  
+  // Sync with external messages updates
+  useEffect(() => {
+    setMsgs(initialMessages)
+    setLastMessageCount(initialMessages.length)
+  }, [initialMessages])
   const [newMessage, setNewMessage] = useState("")
   const [sending, setSending] = useState(false)
   const router = useRouter()
   const { toast } = useToast()
   const { supabase } = useSupabase()
   const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  // Request notification permission on component mount
+  useEffect(() => {
+    if ('Notification' in window) {
+      setNotificationPermission(Notification.permission)
+      if (Notification.permission === 'default') {
+        Notification.requestPermission().then((permission) => {
+          setNotificationPermission(permission)
+        })
+      }
+    }
+  }, [])
+
+  // Function to show notification for new messages
+  const showNotification = (message: Message) => {
+    // Synchronous deduplication check
+    if (notifiedIdsRef.current.has(message.id)) {
+      console.log('🚫 Notification already sent for message:', message.id)
+      return
+    }
+    
+    // Immediately mark as notified (synchronous)
+    notifiedIdsRef.current.add(message.id)
+    
+    console.log('🔔 Notification check:', {
+      hasNotification: 'Notification' in window,
+      permission: Notification.permission,
+      isOtherUser: message.sender_id !== userId,
+      visibilityState: document.visibilityState,
+      senderName: message.sender?.name
+    })
+
+    // Only show notifications for other users' messages
+    if ('Notification' in window && message.sender_id !== userId) {
+      // Mark this message as notified
+      setNotifiedMessageIds(prev => new Set([...prev, message.id]))
+      try {
+        console.log('✅ Attempting to create notification')
+        
+        const notification = new Notification(`New message from ${message.sender?.name || 'Unknown User'}`, {
+          body: message.content.length > 100 ? message.content.substring(0, 100) + '...' : message.content,
+          icon: message.sender?.avatar_url,
+          requireInteraction: true, // Prevent auto-dismiss
+        })
+
+        // Debug notification lifecycle
+        notification.onshow = () => {
+          console.log('🔔 Notification SHOWN')
+        }
+        
+        notification.onclose = () => {
+          console.log('❌ Notification CLOSED')
+        }
+        
+        notification.onerror = (error) => {
+          console.log('❌ Notification ERROR:', error)
+        }
+
+        // Focus window when notification is clicked
+        notification.onclick = () => {
+          console.log('👆 Notification CLICKED')
+          window.focus()
+        }
+        
+        console.log('✅ Notification created successfully')
+      } catch (error) {
+        console.log('❌ Notification failed:', error)
+        // Request permission if not granted
+        if (Notification.permission === 'default') {
+          console.log('🔔 Requesting notification permission...')
+          Notification.requestPermission().then(permission => {
+            console.log('🔔 Permission result:', permission)
+            setNotificationPermission(permission)
+          })
+        }
+      }
+    } else {
+      console.log('❌ Notification blocked - not other user message')
+    }
+  }
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
@@ -62,9 +155,10 @@ export function ChatFeed({ projectId, initialMessages, userId }: ChatFeedProps) 
           filter: `project_id=eq.${projectId}`
         },
         async (payload) => {
-          console.log('🔥 REALTIME: Raw payload received:', payload)
+          console.log('🔥 POSTGRES_CHANGES: Received payload:', payload)
           const newMessage = payload.new as any
-          console.log('🔥 REALTIME: Parsed message:', newMessage)
+          console.log('🔥 POSTGRES_CHANGES: Parsed message:', newMessage)
+          console.log('🔍 USER CHECK: Message sender_id:', newMessage.sender_id, 'Current userId:', userId, 'Is other user:', newMessage.sender_id !== userId)
           
           // Fetch complete message data with sender info since realtime doesn't include relations
           try {
@@ -78,18 +172,14 @@ export function ChatFeed({ projectId, initialMessages, userId }: ChatFeedProps) 
               .single()
             
             if (fullMessage) {
-              console.log('Fetched full message with sender:', fullMessage)
               setMsgs(prev => {
-                console.log('Current messages before update:', prev)
                 // Check if this message already exists (avoid duplicates)
                 if (prev.find(msg => msg.id === fullMessage.id)) {
-                  console.log('Message already exists, skipping')
                   return prev
                 }
                 
                 // If this is from the current user, replace optimistic message but keep "You" as name
                 if (fullMessage.sender_id === userId) {
-                  console.log('Replacing optimistic message for current user')
                   const withoutOptimistic = prev.filter(msg => !msg.id.startsWith('temp-'))
                   // Pre-construct the sender object to avoid any temporary exposure of real user data
                   const youSender = {
@@ -103,14 +193,27 @@ export function ChatFeed({ projectId, initialMessages, userId }: ChatFeedProps) 
                     sender: youSender // Use pre-constructed sender object
                   } as Message
                   const updated = [...withoutOptimistic, messageWithYou]
-                  console.log('Updated messages after replacing optimistic:', updated)
+                  
+                  // Update parent with the real message (defer to avoid render cycle issues)
+                  if (onMessageAdd) {
+                    setTimeout(() => onMessageAdd(messageWithYou), 0)
+                  }
+                  
                   return updated
                 }
                 
                 // For other users' messages, just add normally
-                console.log('Adding message from other user')
                 const updated = [...prev, fullMessage as Message]
-                console.log('Updated messages after adding other user message:', updated)
+                
+                // Show notification for other users' messages
+                console.log('📨 Calling showNotification for other user message')
+                showNotification(fullMessage as Message)
+                
+                // Update parent with the new message (defer to avoid render cycle issues)
+                if (onMessageAdd) {
+                  setTimeout(() => onMessageAdd(fullMessage as Message), 0)
+                }
+                
                 return updated
               })
             }
@@ -119,7 +222,6 @@ export function ChatFeed({ projectId, initialMessages, userId }: ChatFeedProps) 
             
             // Fallback to basic message if sender fetch fails
             setMsgs(prev => {
-              console.log('Using fallback message update')
               // Check if this message already exists (avoid duplicates)
               if (prev.find(msg => msg.id === newMessage.id)) {
                 return prev
@@ -143,20 +245,125 @@ export function ChatFeed({ projectId, initialMessages, userId }: ChatFeedProps) 
               }
               
               // For other users' messages, just add normally
+              console.log('📨 Calling showNotification for fallback message')
+              showNotification(newMessage as Message)
               return [...prev, newMessage as Message]
             })
           }
         }
       )
       .subscribe((status) => {
-        console.log('Realtime subscription status:', status)
+        // Handle connection status
+        if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+          // Trigger immediate polling when realtime fails
+          setTimeout(async () => {
+            try {
+              const { data: latestMessages } = await supabase
+                .from("messages")
+                .select(`*, sender:users(id, name, email, avatar_url)`)
+                .eq("project_id", projectId)
+                .order("created_at", { ascending: true })
+
+              if (latestMessages && latestMessages.length > lastMessageCount) {
+                const newMessages = latestMessages.slice(lastMessageCount)
+                
+                newMessages.forEach((message) => {
+                  const formattedMessage = {
+                    ...message,
+                    sender: message.sender_id === userId 
+                      ? { ...message.sender, name: "You" }
+                      : message.sender
+                  } as Message
+
+                  setMsgs(prev => {
+                    const exists = prev.find(msg => msg.id === formattedMessage.id)
+                    if (!exists) {
+                      // Show notification for other users' messages
+                      if (formattedMessage.sender_id !== userId) {
+                        showNotification(formattedMessage)
+                      }
+                      setTimeout(() => {
+                        if (onMessageAdd) {
+                          onMessageAdd(formattedMessage)
+                        }
+                      }, 0)
+                      return [...prev, formattedMessage]
+                    }
+                    return prev
+                  })
+                })
+                
+                setLastMessageCount(latestMessages.length)
+              }
+            } catch (error) {
+              console.error('Error syncing messages after connection loss:', error)
+            }
+          }, 1000)
+        }
       })
 
     return () => {
-      console.log('Cleaning up realtime subscription')
       channel.unsubscribe()
     }
   }, [supabase, projectId, userId])
+
+  // Fallback polling to ensure messages are synced (runs every 30 seconds)
+  useEffect(() => {
+    if (!supabase) return
+
+    const pollMessages = async () => {
+      try {
+        const { data: latestMessages } = await supabase
+          .from("messages")
+          .select(`
+            *,
+            sender:users(id, name, email, avatar_url)
+          `)
+          .eq("project_id", projectId)
+          .order("created_at", { ascending: true })
+
+        if (latestMessages && latestMessages.length > lastMessageCount) {
+          const newMessages = latestMessages.slice(lastMessageCount)
+          
+          newMessages.forEach((message) => {
+            const formattedMessage = {
+              ...message,
+              sender: message.sender_id === userId 
+                ? { ...message.sender, name: "You" }
+                : message.sender
+            } as Message
+
+            setMsgs(prev => {
+              const exists = prev.find(msg => msg.id === formattedMessage.id)
+              if (!exists) {
+                // Show notification for other users' messages
+                if (formattedMessage.sender_id !== userId) {
+                  console.log('📨 Calling showNotification for polling message')
+                  showNotification(formattedMessage)
+                }
+                if (onMessageAdd) {
+                  setTimeout(() => onMessageAdd(formattedMessage), 0)
+                }
+                return [...prev, formattedMessage]
+              }
+              return prev
+            })
+          })
+          
+          setLastMessageCount(latestMessages.length)
+        }
+      } catch (error) {
+        console.error('Error polling messages:', error)
+      }
+    }
+
+    // Poll every 30 seconds
+    const pollInterval = setInterval(pollMessages, 30000)
+
+    return () => {
+      clearInterval(pollInterval)
+    }
+  }, [supabase, projectId, userId, lastMessageCount, onMessageAdd])
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -190,17 +397,20 @@ export function ChatFeed({ projectId, initialMessages, userId }: ChatFeedProps) 
     // Add optimistic message immediately
     setMsgs(prev => [...prev, optimisticMessage])
     setNewMessage("")
-    console.log('💡 Optimistic message added, current msgs count:', msgs.length + 1)
+    
+    // Notify parent component about the new message (defer to avoid render cycle issues)
+    setTimeout(() => {
+      if (onMessageAdd) {
+        onMessageAdd(optimisticMessage)
+      }
+    }, 0)
 
     try {
-      console.log('Sending message:', messageContent)
-      console.log('Optimistic message added to UI:', optimisticMessage)
       
       const result = await sendMessage({
         projectId,
         content: messageContent,
       })
-      console.log('Message sent successfully:', result)
       
       // Test if realtime is working with a simple broadcast
       if (supabase) {
@@ -210,15 +420,27 @@ export function ChatFeed({ projectId, initialMessages, userId }: ChatFeedProps) 
           event: 'test',
           payload: { message: 'Testing realtime connection', timestamp: Date.now() }
         })
-        console.log('🧪 Test broadcast sent')
       }
       
-      // Add a small timeout to see if realtime kicks in
-      setTimeout(() => {
-        console.log('Current messages after 2 seconds:', msgs)
-      }, 2000)
       
       // The real message will replace the optimistic one via realtime subscription
+      // Also poll once after 5 seconds to ensure message was persisted
+      setTimeout(async () => {
+        try {
+          const { data: recentMessages } = await supabase
+            .from("messages")
+            .select("id, content")
+            .eq("project_id", projectId)
+            .eq("sender_id", userId)
+            .order("created_at", { ascending: false })
+            .limit(1)
+
+          // Message persistence check (silent)
+        } catch (error) {
+          console.error('Error checking message persistence:', error)
+        }
+      }, 5000)
+      
     } catch (error: any) {
       // Remove optimistic message on error
       setMsgs(prev => prev.filter(msg => msg.id !== optimisticMessage.id))
@@ -231,6 +453,14 @@ export function ChatFeed({ projectId, initialMessages, userId }: ChatFeedProps) 
       })
     } finally {
       setSending(false)
+    }
+  }
+
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handleSendMessage(e as any)
     }
   }
 
@@ -306,7 +536,6 @@ export function ChatFeed({ projectId, initialMessages, userId }: ChatFeedProps) 
                               : "bg-muted text-foreground"
                         }`}
                       >
-                        {message.type === "feedback" && <div className="font-medium mb-1 text-sm">Feedback:</div>}
                         <p className="text-sm">{message.content}</p>
                       </div>
                       
@@ -338,6 +567,7 @@ export function ChatFeed({ projectId, initialMessages, userId }: ChatFeedProps) 
             placeholder="Type your message..."
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
+            onKeyDown={handleKeyDown}
             className="min-h-[80px] flex-1 resize-none"
           />
           <Button

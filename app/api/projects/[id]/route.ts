@@ -176,6 +176,7 @@ export async function PATCH(
         description: updates.description,
         youtube_channel_id: updates.youtube_channel_id,
         publishing_status: updates.publishing_status,
+        final_version_number: updates.finalVersionNumber,
         updated_at: new Date().toISOString()
       })
       .eq("id", params.id)

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Loader2 } from "lucide-react"
 import { getPresignedViewUrl } from "@/lib/api"
+import { useSupabase } from "@/hooks/useUser"
 
 interface VersionPreviewDialogProps {
   open: boolean
@@ -20,9 +21,10 @@ export function VersionPreviewDialog({ open, onOpenChange, version }: VersionPre
   const [videoUrl, setVideoUrl] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const { user } = useSupabase()
 
   useEffect(() => {
-    if (open && version) {
+    if (open && version && user) {
       setLoading(true)
       setError(null)
       setVideoUrl(null)
@@ -33,13 +35,21 @@ export function VersionPreviewDialog({ open, onOpenChange, version }: VersionPre
         })
         .catch((err) => {
           console.error("Error getting presigned URL:", err)
-          setError("Failed to load video preview")
+          // Fallback to original URL instead of showing error
+          console.log("Falling back to original video URL")
+          setVideoUrl(version.file_url)
         })
         .finally(() => {
           setLoading(false)
         })
+    } else if (open && version && !user) {
+      // If no user is authenticated, use original URL
+      console.log("No authenticated user, using original video URL")
+      setVideoUrl(version.file_url)
+      setLoading(false)
+      setError(null)
     }
-  }, [open, version])
+  }, [open, version, user])
 
   if (!version) return null
 

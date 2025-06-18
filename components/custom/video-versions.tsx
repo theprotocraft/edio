@@ -19,11 +19,14 @@ import { VersionPreviewDialog } from "@/components/custom/version-preview-dialog
 import { VersionUpload } from "@/components/custom/version-upload"
 import { sendFeedback } from "@/lib/api"
 import { useRouter } from "next/navigation"
+import { useSupabase } from "@/hooks/useUser"
 
 interface VideoVersionsProps {
   project: any
   versions: any[]
   userRole: "youtuber" | "editor"
+  onProjectUpdate?: (updates: any) => void
+  onMessageAdd?: (message: any) => void
 }
 
 interface Version {
@@ -38,7 +41,7 @@ interface Version {
   }
 }
 
-export function VideoVersions({ project, versions, userRole }: VideoVersionsProps) {
+export function VideoVersions({ project, versions, userRole, onProjectUpdate, onMessageAdd }: VideoVersionsProps) {
   const [selectedVersion, setSelectedVersion] = useState<Version | null>(null)
   const [previewDialogOpen, setPreviewDialogOpen] = useState(false)
   const [feedbackDialogOpen, setFeedbackDialogOpen] = useState(false)
@@ -46,6 +49,7 @@ export function VideoVersions({ project, versions, userRole }: VideoVersionsProp
   const [submittingFeedback, setSubmittingFeedback] = useState(false)
   const { toast } = useToast()
   const router = useRouter()
+  const { user } = useSupabase()
 
   const handlePreview = (version: Version) => {
     setSelectedVersion(version)
@@ -58,10 +62,36 @@ export function VideoVersions({ project, versions, userRole }: VideoVersionsProp
   }
 
   const handleSubmitFeedback = async () => {
-    if (!selectedVersion || !feedback.trim()) return
+    if (!selectedVersion || !feedback.trim() || !user) return
 
     setSubmittingFeedback(true)
+    
+    // Create optimistic message for immediate UI update
+    const optimisticMessage = {
+      id: `temp-${Date.now()}`,
+      project_id: project.id,
+      sender_id: user.id,
+      content: `Feedback on version ${selectedVersion.version_number}: ${feedback.trim()}`,
+      type: "feedback",
+      created_at: new Date().toISOString(),
+      sender: {
+        id: user.id,
+        name: "You",
+        email: user.email,
+        avatar_url: null
+      }
+    }
+
+    // Add optimistic message immediately
+    if (onMessageAdd) {
+      onMessageAdd(optimisticMessage)
+    }
+
     try {
+      // Close dialog immediately after optimistic update
+      setFeedback("")
+      setFeedbackDialogOpen(false)
+      
       await sendFeedback({
         projectId: project.id,
         versionId: selectedVersion.id,
@@ -72,11 +102,14 @@ export function VideoVersions({ project, versions, userRole }: VideoVersionsProp
         title: "Feedback sent",
         description: "Your feedback has been sent successfully.",
       })
-
-      setFeedback("")
-      setFeedbackDialogOpen(false)
-      router.refresh()
+      
+      // Fallback to router refresh if no callback provided
+      if (!onMessageAdd) {
+        router.refresh()
+      }
     } catch (error: any) {
+      // If API fails, show error but don't revert optimistic update
+      // The real-time subscription will handle consistency
       toast({
         title: "Error",
         description: error.message || "Failed to send feedback.",
@@ -114,6 +147,7 @@ export function VideoVersions({ project, versions, userRole }: VideoVersionsProp
                 onPreview={() => handlePreview(version)}
                 onFeedback={userRole === "youtuber" ? () => handleFeedback(version) : undefined}
                 uploaderName={version.uploader?.name}
+                onProjectUpdate={onProjectUpdate}
               />
             ))}
           </div>

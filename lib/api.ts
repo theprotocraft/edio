@@ -145,6 +145,7 @@ export async function updateProject(
     description?: string
     youtube_channel_id?: string
     publishing_status?: 'idle' | 'publishing' | 'completed' | 'failed'
+    finalVersionNumber?: number
   }
 ) {
   const response = await fetch(`/api/projects/${projectId}`, {
@@ -232,19 +233,21 @@ export async function uploadFile({
   // Upload to the presigned URL with progress tracking
   await uploadFileWithProgress(uploadUrl, file, onProgress)
 
-  // Save file metadata to Supabase
-  const { error } = await supabase.from("uploads").insert({
+  // Save file metadata to Supabase and return the created record
+  const { data: uploadData, error } = await supabase.from("uploads").insert({
     project_id: projectId,
     user_id: (await supabase.auth.getUser()).data.user?.id,
     file_url: fileUrl,
     file_type: fileType,
     file_name: file.name,
     file_size: file.size,
-  })
+  }).select().single()
 
   if (error) {
     throw error
   }
+
+  return uploadData
 }
 
 export async function deleteFile(fileId: string) {
@@ -451,7 +454,14 @@ export async function getPresignedViewUrl(fileUrl: string) {
     
     // Validate that fileUrl is a valid URL string
     if (!fileUrl || typeof fileUrl !== 'string') {
-      throw new Error('Invalid file URL provided');
+      console.warn('Invalid file URL provided, returning original URL');
+      return fileUrl;
+    }
+    
+    // Check if this looks like an S3 URL that needs a presigned URL
+    if (!fileUrl.includes('.s3.') && !fileUrl.includes('amazonaws.com')) {
+      console.log('URL does not appear to be an S3 URL, returning as-is');
+      return fileUrl;
     }
     
     // Extract the file path from the full S3 URL
@@ -472,9 +482,15 @@ export async function getPresignedViewUrl(fileUrl: string) {
     console.log("API response status:", response.status);
 
     if (!response.ok) {
-      const errorData = await response.json();
+      let errorData;
+      try {
+        errorData = await response.json();
+      } catch (parseError) {
+        console.error("Failed to parse error response:", parseError);
+        errorData = { error: `HTTP ${response.status}: ${response.statusText}` };
+      }
       console.error("API error response:", errorData);
-      throw new Error(errorData.error || "Failed to get view URL");
+      throw new Error(errorData.error || `HTTP ${response.status}: Failed to get view URL`);
     }
 
     const { presignedUrl } = await response.json();
@@ -482,7 +498,8 @@ export async function getPresignedViewUrl(fileUrl: string) {
     return presignedUrl;
   } catch (error: any) {
     console.error("Error getting presigned view URL:", error);
-    // Return the original URL as fallback (won't work, but prevents UI errors)
+    console.log("Falling back to original URL for:", fileUrl);
+    // Return the original URL as fallback (may not work for private buckets, but prevents UI errors)
     return fileUrl;
   }
 }
