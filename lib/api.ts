@@ -233,19 +233,21 @@ export async function uploadFile({
   // Upload to the presigned URL with progress tracking
   await uploadFileWithProgress(uploadUrl, file, onProgress)
 
-  // Save file metadata to Supabase
-  const { error } = await supabase.from("uploads").insert({
+  // Save file metadata to Supabase and return the created record
+  const { data: uploadData, error } = await supabase.from("uploads").insert({
     project_id: projectId,
     user_id: (await supabase.auth.getUser()).data.user?.id,
     file_url: fileUrl,
     file_type: fileType,
     file_name: file.name,
     file_size: file.size,
-  })
+  }).select().single()
 
   if (error) {
     throw error
   }
+
+  return uploadData
 }
 
 export async function deleteFile(fileId: string) {

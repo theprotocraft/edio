@@ -15,7 +15,7 @@ import { z } from "zod"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Progress } from "@/components/ui/progress"
 import { Label } from "@/components/ui/label"
-import { ImageIcon, Upload, Loader2, Youtube, Trash2 } from "lucide-react"
+import { ImageIcon, Loader2, Youtube, Trash2 } from "lucide-react"
 import { formatFileSize } from "@/lib/utils"
 import Image from "next/image"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -74,6 +74,7 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
   const [removingThumbnail, setRemovingThumbnail] = useState(false)
   const [channels, setChannels] = useState<YouTubeChannel[]>([])
   const [loadingChannels, setLoadingChannels] = useState(false)
+  const [currentUploads, setCurrentUploads] = useState(uploads)
   
   // YouTube publish popup state
   const [publishDialogOpen, setPublishDialogOpen] = useState(false)
@@ -87,8 +88,13 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
   const { toast } = useToast()
   const { user } = useSupabase()
 
-  // Find thumbnail from uploads (if any)
-  const thumbnailUpload = uploads.find(upload => upload.file_type === "thumbnail");
+  // Find thumbnail from current uploads (if any)
+  const thumbnailUpload = currentUploads.find(upload => upload.file_type === "thumbnail");
+  
+  // Update currentUploads when uploads prop changes
+  useEffect(() => {
+    setCurrentUploads(uploads)
+  }, [uploads])
 
   // Get presigned URL for thumbnail
   useEffect(() => {
@@ -196,24 +202,17 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
 
   const handleThumbnailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      setSelectedThumbnail(e.target.files[0])
+      const file = e.target.files[0]
+      setSelectedThumbnail(file)
+      
+      // Automatically upload the thumbnail after selection
+      uploadThumbnailDirectly(file)
     }
   }
-
-  const handleThumbnailUpload = async (e: React.FormEvent) => {
-    e.preventDefault()
-
-    if (!selectedThumbnail) {
-      toast({
-        title: "No thumbnail selected",
-        description: "Please select an image to upload as thumbnail.",
-        variant: "destructive",
-      })
-      return
-    }
-
+  
+  const uploadThumbnailDirectly = async (file: File) => {
     // Check if file is an image
-    if (!selectedThumbnail.type.startsWith("image/")) {
+    if (!file.type.startsWith("image/")) {
       toast({
         title: "Invalid file type",
         description: "Please select an image file (JPG, PNG, etc.).",
@@ -226,11 +225,21 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
     setUploadProgress(0)
 
     try {
-      await uploadFile({
-        file: selectedThumbnail,
+      const newUpload = await uploadFile({
+        file: file,
         projectId: project.id,
         onProgress: (progress) => setUploadProgress(progress),
       })
+
+      // Update local uploads state with the new upload
+      setCurrentUploads(prev => {
+        // Remove any existing thumbnail upload and add the new one
+        const withoutThumbnail = prev.filter(upload => upload.file_type !== "thumbnail")
+        return [...withoutThumbnail, newUpload]
+      })
+
+      // Clear the cached thumbnail URL to force reload
+      setThumbnailUrl(null)
 
       toast({
         title: "Thumbnail uploaded",
@@ -240,9 +249,12 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
       // Reset form
       setSelectedThumbnail(null)
       setUploadProgress(0)
-
-      // Refresh the page to show the new upload
-      router.refresh()
+      
+      // Clear the file input
+      const fileInput = document.getElementById('thumbnail') as HTMLInputElement
+      if (fileInput) {
+        fileInput.value = ''
+      }
     } catch (error: any) {
       toast({
         title: "Upload failed",
@@ -255,6 +267,7 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
     }
   }
 
+
   const handleThumbnailRemove = async () => {
     if (!thumbnailUpload) return
 
@@ -262,8 +275,11 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
     try {
       await deleteFile(thumbnailUpload.id)
       
-      // Refresh uploads to remove the thumbnail from the list
-      window.location.reload() // Simple refresh - you could implement a more elegant solution
+      // Update local uploads state to remove the thumbnail
+      setCurrentUploads(prev => prev.filter(upload => upload.id !== thumbnailUpload.id))
+      
+      // Clear the cached thumbnail URL
+      setThumbnailUrl(null)
       
       toast({
         title: "Success",
@@ -544,29 +560,17 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
                     <div className="mt-4 pt-4 border-t">
                       <p className="text-sm font-medium mb-2">Replace Thumbnail</p>
                       <div className="space-y-2">
-                        <div className="flex items-center gap-2">
-                          <Input 
-                            id="thumbnail" 
-                            type="file" 
-                            accept="image/*"
-                            onChange={handleThumbnailChange} 
-                            className="flex-1" 
-                          />
-                          <Button
-                            type="button"
-                            onClick={handleThumbnailUpload}
-                            disabled={!selectedThumbnail || uploadingThumbnail}
-                            className="rounded-2xl shadow-md transition-transform active:scale-[0.98]"
-                          >
-                            {uploadingThumbnail ? (
-                              "Uploading..."
-                            ) : (
-                              <>
-                                <Upload className="mr-2 h-4 w-4" /> Replace
-                              </>
-                            )}
-                          </Button>
-                        </div>
+                        <Input 
+                          id="thumbnail" 
+                          type="file" 
+                          accept="image/*"
+                          onChange={handleThumbnailChange}
+                          disabled={uploadingThumbnail}
+                          className="w-full" 
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Select an image to automatically upload as thumbnail
+                        </p>
                       </div>
                     </div>
                   </div>
@@ -581,29 +585,17 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
                     
                     <div className="space-y-2">
                       <Label htmlFor="thumbnail">Upload Thumbnail</Label>
-                      <div className="flex items-center gap-2">
-                        <Input 
-                          id="thumbnail" 
-                          type="file" 
-                          accept="image/*"
-                          onChange={handleThumbnailChange} 
-                          className="flex-1" 
-                        />
-                        <Button
-                          type="button"
-                          onClick={handleThumbnailUpload}
-                          disabled={!selectedThumbnail || uploadingThumbnail}
-                          className="rounded-2xl shadow-md transition-transform active:scale-[0.98]"
-                        >
-                          {uploadingThumbnail ? (
-                            "Uploading..."
-                          ) : (
-                            <>
-                              <Upload className="mr-2 h-4 w-4" /> Upload
-                            </>
-                          )}
-                        </Button>
-                      </div>
+                      <Input 
+                        id="thumbnail" 
+                        type="file" 
+                        accept="image/*"
+                        onChange={handleThumbnailChange}
+                        disabled={uploadingThumbnail}
+                        className="w-full" 
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Select an image to automatically upload as thumbnail
+                      </p>
                     </div>
                   </div>
                 )}
