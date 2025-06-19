@@ -109,7 +109,7 @@ export function SettingsClient({ userData, youtubeChannels }: SettingsClientProp
           <CardContent>
             <div className="flex items-center gap-4">
               <Avatar className="h-16 w-16">
-                <AvatarImage src={userData.avatar_url || ""} alt={userData.name || "User"} />
+                <AvatarImage src={userData.avatar_url} alt={userData.name || "User"} />
                 <AvatarFallback>
                   {userData.name?.charAt(0).toUpperCase() || userData.email?.charAt(0).toUpperCase() || "U"}
                 </AvatarFallback>
