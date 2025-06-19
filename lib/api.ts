@@ -366,15 +366,20 @@ export async function uploadVideoVersion({
   }
 }
 
-export async function deleteVideoVersion(versionId: string) {
-  const supabase = createClient()
+export async function deleteVideoVersion(versionId: string, projectId: string) {
+  const response = await fetch(`/api/projects/${projectId}/versions/${versionId}`, {
+    method: "DELETE",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  })
 
-  // Delete version from Supabase
-  const { error } = await supabase.from("video_versions").delete().eq("id", versionId)
-
-  if (error) {
-    throw error
+  if (!response.ok) {
+    const errorData = await response.json()
+    throw new Error(errorData.error || "Failed to delete video version")
   }
+
+  return await response.json()
 }
 
 export async function approveVersion(projectId: string) {

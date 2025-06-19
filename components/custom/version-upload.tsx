@@ -14,9 +14,10 @@ interface VersionUploadProps {
   projectId: string
   userRole: "youtuber" | "editor"
   disabled?: boolean
+  onUploadSuccess?: () => void
 }
 
-export function VersionUpload({ projectId, userRole, disabled = false }: VersionUploadProps) {
+export function VersionUpload({ projectId, userRole, disabled = false, onUploadSuccess }: VersionUploadProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [notes, setNotes] = useState("")
   const [uploading, setUploading] = useState(false)
@@ -121,8 +122,13 @@ export function VersionUpload({ projectId, userRole, disabled = false }: Version
       setNotes("")
       setProgress(0)
 
-      // Refresh the page to show the new version
-      router.refresh()
+      // Notify parent component to refresh versions
+      onUploadSuccess?.()
+      
+      // Fallback: refresh the page if no callback provided
+      if (!onUploadSuccess) {
+        router.refresh()
+      }
     } catch (error: any) {
       toast({
         title: "Upload failed",

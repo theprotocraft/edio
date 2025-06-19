@@ -260,7 +260,7 @@ export function VideoVersions({ project, versions, userRole }: VideoVersionsProp
                     <h4 className="font-medium">Version {version.version_number}</h4>
                   </div>
 
-                  <div className="aspect-video bg-gray-100 dark:bg-gray-800 rounded-md mb-4 overflow-hidden">
+                  <div className="bg-gray-100 dark:bg-gray-800 rounded-md mb-4 overflow-hidden h-20 flex items-center justify-center">
                     {version.file_url && (
                       <iframe
                         src={

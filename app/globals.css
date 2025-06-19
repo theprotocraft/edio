@@ -10,6 +10,12 @@ body {
   .text-balance {
     text-wrap: balance;
   }
+  
+  .compact-video-preview {
+    height: 80px !important;
+    max-height: 80px !important;
+    min-height: 80px !important;
+  }
 }
 
 @layer base {

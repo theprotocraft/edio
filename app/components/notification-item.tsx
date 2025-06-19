@@ -87,11 +87,15 @@ export function NotificationItem({ notification, onActionComplete }: Notificatio
         })
         .eq("id", notification.metadata.invitation_id)
         .select("youtuber_id")
-        .single()
+        .maybeSingle()
 
       if (editorError) {
         console.error("Error updating invitation:", editorError)
         throw editorError
+      }
+
+      if (!editorData) {
+        throw new Error("Invitation not found or already processed")
       }
 
       // Update the original invitation notification for the editor

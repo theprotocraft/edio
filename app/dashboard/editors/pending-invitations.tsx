@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, forwardRef, useImperativeHandle, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -24,13 +24,20 @@ interface PendingInvitation {
     email: string
     name: string | null
   }
+  editor: {
+    email: string
+    name: string | null
+  }
 }
 
 interface PendingInvitationsProps {
   user: User
 }
 
-export function PendingInvitations({ user }: PendingInvitationsProps) {
+export const PendingInvitations = forwardRef<
+  { refreshInvitations: () => void },
+  PendingInvitationsProps
+>(({ user }, ref) => {
   const [invitations, setInvitations] = useState<PendingInvitation[]>([])
   const [loading, setLoading] = useState(true)
   const [userRole, setUserRole] = useState<"editor" | "youtuber" | null>(null)
@@ -38,11 +45,7 @@ export function PendingInvitations({ user }: PendingInvitationsProps) {
   const router = useRouter()
   const { toast } = useToast()
 
-  useEffect(() => {
-    fetchInvitations()
-  }, [user])
-
-  const fetchInvitations = async () => {
+  const fetchInvitations = useCallback(async () => {
     try {
       // First check if the user is an editor or youtuber
       const { data: roleData, error: roleError } = await supabase
@@ -99,6 +102,10 @@ export function PendingInvitations({ user }: PendingInvitationsProps) {
         youtuber: {
           email: invitation.youtuber.email,
           name: invitation.youtuber.name
+        },
+        editor: {
+          email: invitation.editor.email,
+          name: invitation.editor.name
         }
       })) || []
 
@@ -113,7 +120,15 @@ export function PendingInvitations({ user }: PendingInvitationsProps) {
     } finally {
       setLoading(false)
     }
-  }
+  }, [user, supabase])
+
+  useEffect(() => {
+    fetchInvitations()
+  }, [fetchInvitations])
+
+  useImperativeHandle(ref, () => ({
+    refreshInvitations: fetchInvitations
+  }), [fetchInvitations])
 
   const handleInvitation = async (invitationId: string, accept: boolean) => {
     setLoading(true)
@@ -288,7 +303,7 @@ export function PendingInvitations({ user }: PendingInvitationsProps) {
                 {getStatusBadge(invitation.status)}
               </CardTitle>
               <CardDescription>
-                {userRole === "editor" ? "From: " : "To: "} {userRole === "editor" ? invitation.project_owner.name || invitation.project_owner.email : invitation.youtuber.name || invitation.youtuber.email}
+                {userRole === "editor" ? "From: " : "To: "} {userRole === "editor" ? invitation.youtuber.name || invitation.youtuber.email : invitation.editor.name || invitation.editor.email}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -335,4 +350,6 @@ export function PendingInvitations({ user }: PendingInvitationsProps) {
       </div>
     </div>
   )
-} 
+})
+
+PendingInvitations.displayName = "PendingInvitations"

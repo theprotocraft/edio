@@ -103,7 +103,7 @@ export default async function OverviewPage() {
             </CardHeader>
             <CardContent>
               {projects && projects.length > 0 ? (
-                <div className="space-y-4">
+                <div className="space-y-2">
                   {projects.slice(0, 4).map((project: Project) => (
                     <ProjectCard key={project.id} project={project} isCreator={isCreator} />
                   ))}
