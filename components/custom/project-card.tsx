@@ -41,7 +41,7 @@ export function ProjectCard({ project, isCreator, className }: ProjectCardProps)
 
   return (
     <Card className={cn("overflow-hidden flex flex-col h-full", className)}>
-      <CardContent className="p-6 flex-1">
+      <CardContent className="p-4 flex-1">
         <div className="flex justify-between items-start mb-3">
           <h3 className="text-lg font-semibold line-clamp-1 flex-1 mr-3">{project.title || project.project_title || project.video_title || "Untitled Project"}</h3>
           {getStatusBadge(project.status)}
@@ -50,7 +50,7 @@ export function ProjectCard({ project, isCreator, className }: ProjectCardProps)
           {project.description || "No description provided"}
         </p>
       </CardContent>
-      <CardFooter className="p-6 pt-3 border-t border-border/50">
+      <CardFooter className="p-4 pt-3 border-t border-border/50">
         <div className="flex items-center text-xs text-muted-foreground">
           <Clock className="mr-1 h-3 w-3" />
           <span>Updated {new Date(project.updated_at || project.created_at).toISOString().split('T')[0]}</span>
