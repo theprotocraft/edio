@@ -45,6 +45,7 @@ interface VersionCardProps {
   onFeedback?: () => void
   uploaderName?: string
   onProjectUpdate?: (updates: any) => void
+  currentUserId?: string
 }
 
 export function VersionCard({ 
@@ -54,7 +55,8 @@ export function VersionCard({
   onPreview, 
   onFeedback,
   uploaderName,
-  onProjectUpdate
+  onProjectUpdate,
+  currentUserId
 }: VersionCardProps) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [finalDialogOpen, setFinalDialogOpen] = useState(false)
@@ -65,7 +67,9 @@ export function VersionCard({
   const isCreator = userRole === "youtuber"
   const isOwner = version.uploader_id === project.owner_id
   const isFinal = project.final_version_number === version.version_number
-  const canDelete = (isCreator && isOwner) || (!isCreator && !isOwner)
+  const isUploader = currentUserId && version.uploader_id === currentUserId
+  // YouTuber can delete any version, Editor can delete only their own uploaded versions
+  const canDelete = isCreator || (!isCreator && isUploader)
   const canSetFinal = isCreator && !isFinal
 
   const handleSetFinal = async () => {
@@ -102,14 +106,20 @@ export function VersionCard({
   const handleDelete = async () => {
     setLoading(true)
     try {
-      await deleteVideoVersion(version.id)
+      await deleteVideoVersion(version.id, project.id)
       
       toast({
         title: "Version deleted",
         description: "The video version has been deleted successfully.",
       })
       
-      router.refresh()
+      // Trigger refresh through parent component
+      if (onProjectUpdate) {
+        onProjectUpdate({ refresh: true })
+      } else {
+        // Fallback: refresh the page if no callback provided
+        router.refresh()
+      }
     } catch (error: any) {
       toast({
         title: "Delete failed",
@@ -124,11 +134,31 @@ export function VersionCard({
 
   return (
     <>
-      <div className="rounded-lg border p-4 hover:bg-muted/50 transition-colors shadow-sm">
-        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+      <div className="rounded-lg border p-3 hover:bg-muted/50 transition-colors shadow-sm w-full">
+        <div className="flex flex-col gap-3">
+          {/* Thumbnail */}
+          <div className="w-full">
+            <div 
+              className="bg-muted rounded-md overflow-hidden cursor-pointer group relative w-full"
+              style={{
+                height: '120px',
+                aspectRatio: '16/9'
+              }}
+              onClick={onPreview}
+            >
+              <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-muted to-muted-foreground/20">
+                <div className="flex items-center gap-2 text-muted-foreground group-hover:text-primary transition-colors">
+                  <Play className="w-5 h-5" />
+                  <span className="text-sm font-medium">Preview</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Content */}
           <div className="flex-1">
-            <div className="flex items-center gap-2 mb-3">
-              <h4 className="font-medium">Version {version.version_number}</h4>
+            <div className="flex items-center gap-2 mb-1">
+              <h4 className="font-medium text-sm">Version {version.version_number}</h4>
               {isFinal && (
                 <Badge variant="default" className="bg-green-600 hover:bg-green-700">
                   <Star className="w-3 h-3 mr-1" />
@@ -137,29 +167,17 @@ export function VersionCard({
               )}
             </div>
 
-            {/* Thumbnail/Preview */}
-            <div 
-              className="aspect-video bg-muted rounded-md mb-4 overflow-hidden cursor-pointer group relative"
-              onClick={onPreview}
-            >
-              <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-muted to-muted-foreground/20">
-                <div className="flex flex-col items-center gap-2 text-muted-foreground group-hover:text-primary transition-colors">
-                  <Play className="w-12 h-12" />
-                  <span className="text-sm font-medium">Click to Preview</span>
-                </div>
-              </div>
-            </div>
 
             {/* Notes */}
             {version.notes && (
-              <div className="mb-4 p-3 bg-muted/50 rounded-md">
-                <h5 className="text-sm font-medium mb-1">Version Notes:</h5>
-                <p className="text-sm text-muted-foreground">{version.notes}</p>
+              <div className="mb-1 p-1.5 bg-muted/50 rounded-md">
+                <h5 className="text-xs font-medium mb-0.5">Notes:</h5>
+                <p className="text-xs text-muted-foreground line-clamp-1">{version.notes}</p>
               </div>
             )}
 
             {/* Metadata */}
-            <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
+            <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground mb-2">
               <div className="flex items-center gap-1">
                 <User className="w-3 h-3" />
                 <span>{uploaderName || (isOwner ? "Creator" : "Editor")}</span>
@@ -169,20 +187,19 @@ export function VersionCard({
                 <span>{new Date(version.created_at).toLocaleDateString()}</span>
               </div>
             </div>
-          </div>
 
-          {/* Actions */}
-          <div className="flex flex-row md:flex-col gap-2">
+            {/* Actions */}
+            <div className="flex flex-wrap gap-1">
             {canSetFinal && (
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => setFinalDialogOpen(true)}
                 disabled={loading}
-                className="rounded-lg"
+                className="rounded-lg text-xs px-2 py-1 h-7"
               >
-                <Star className="mr-2 h-4 w-4" />
-                Set as Final
+                <Star className="mr-1 h-3 w-3" />
+                Final
               </Button>
             )}
             
@@ -191,9 +208,9 @@ export function VersionCard({
                 variant="outline"
                 size="sm"
                 onClick={onFeedback}
-                className="rounded-lg"
+                className="rounded-lg text-xs px-2 py-1 h-7"
               >
-                <MessageSquare className="mr-2 h-4 w-4" />
+                <MessageSquare className="mr-1 h-3 w-3" />
                 Feedback
               </Button>
             )}
@@ -202,14 +219,15 @@ export function VersionCard({
               <Button
                 variant="ghost"
                 size="sm"
-                className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
+                className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950 text-xs px-2 py-1 h-7"
                 onClick={() => setDeleteDialogOpen(true)}
                 disabled={loading}
               >
-                <Trash className="mr-2 h-4 w-4" />
+                <Trash className="mr-1 h-3 w-3" />
                 Delete
               </Button>
             )}
+            </div>
           </div>
         </div>
       </div>

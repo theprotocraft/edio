@@ -67,6 +67,7 @@ export async function GET(
         file_url,
         notes,
         created_at,
+        uploader_id,
         uploader:users(id, name, email)
       `)
       .eq("project_id", projectId)

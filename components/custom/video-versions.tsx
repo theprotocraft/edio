@@ -51,6 +51,16 @@ export function VideoVersions({ project, versions, userRole, onProjectUpdate, on
   const router = useRouter()
   const { user } = useSupabase()
 
+  const handleUploadSuccess = () => {
+    // Trigger a project update to refresh versions
+    if (onProjectUpdate) {
+      onProjectUpdate({ refresh: true })
+    } else {
+      // Fallback: refresh the page
+      router.refresh()
+    }
+  }
+
   const handlePreview = (version: Version) => {
     setSelectedVersion(version)
     setPreviewDialogOpen(true)
@@ -130,14 +140,15 @@ export function VideoVersions({ project, versions, userRole, onProjectUpdate, on
         projectId={project.id} 
         userRole={userRole}
         disabled={project.status === "approved"}
+        onUploadSuccess={handleUploadSuccess}
       />
 
       {/* Versions List */}
-      <div className="space-y-4">
+      <div className="space-y-3">
         <h3 className="text-xl font-medium">Video Versions</h3>
         
         {sortedVersions.length > 0 ? (
-          <div className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-w-6xl">
             {sortedVersions.map((version) => (
               <VersionCard
                 key={version.id}
@@ -148,6 +159,7 @@ export function VideoVersions({ project, versions, userRole, onProjectUpdate, on
                 onFeedback={userRole === "youtuber" ? () => handleFeedback(version) : undefined}
                 uploaderName={version.uploader?.name}
                 onProjectUpdate={onProjectUpdate}
+                currentUserId={user?.id}
               />
             ))}
           </div>

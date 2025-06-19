@@ -20,6 +20,7 @@ export function ProjectTabs({ project, uploads, versions, messages, userRole, us
   const [activeTab, setActiveTab] = useState("details")
   const [currentProject, setCurrentProject] = useState(project)
   const [currentMessages, setCurrentMessages] = useState(messages)
+  const [currentVersions, setCurrentVersions] = useState(versions)
 
   // Update local state when props change
   useEffect(() => {
@@ -30,12 +31,37 @@ export function ProjectTabs({ project, uploads, versions, messages, userRole, us
     setCurrentMessages(messages)
   }, [messages])
 
+  useEffect(() => {
+    setCurrentVersions(versions)
+  }, [versions])
+
+  // Function to refresh versions from API
+  const refreshVersions = async () => {
+    try {
+      // Small delay to ensure database transaction is committed
+      await new Promise(resolve => setTimeout(resolve, 500))
+      
+      const response = await fetch(`/api/projects/${project.id}/versions`)
+      if (response.ok) {
+        const data = await response.json()
+        setCurrentVersions(data.versions || [])
+      }
+    } catch (error) {
+      console.error('Failed to refresh versions:', error)
+    }
+  }
+
   // Handle project updates for immediate UI feedback
   const handleProjectUpdate = (updates: any) => {
     setCurrentProject((prev: any) => ({
       ...prev,
       ...updates
     }))
+    
+    // If this is a refresh request, refetch versions
+    if (updates?.refresh) {
+      refreshVersions()
+    }
   }
 
   // Handle message updates for immediate UI feedback
@@ -72,7 +98,7 @@ export function ProjectTabs({ project, uploads, versions, messages, userRole, us
       <TabsContent value="versions" className="mt-6">
         <VideoVersions 
           project={currentProject} 
-          versions={versions} 
+          versions={currentVersions} 
           userRole={userRole} 
           onProjectUpdate={handleProjectUpdate}
           onMessageAdd={handleMessageAdd}
