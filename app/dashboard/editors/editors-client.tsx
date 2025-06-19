@@ -62,9 +62,10 @@ interface TransformedEditor {
 
 interface EditorsClientProps {
   user: User
+  onInvitationSent?: () => void
 }
 
-export function EditorsClient({ user }: EditorsClientProps) {
+export function EditorsClient({ user, onInvitationSent }: EditorsClientProps) {
   const [editors, setEditors] = useState<TransformedEditor[]>([])
   const [loading, setLoading] = useState(true)
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false)
@@ -163,10 +164,12 @@ export function EditorsClient({ user }: EditorsClientProps) {
         .from("users")
         .select("id")
         .eq("email", data.editor_email)
-        .single()
+        .maybeSingle()
 
       if (userError) throw userError
-      if (!existingUser) throw new Error("User not found")
+      if (!existingUser) {
+        throw new Error("Editor is not registered yet. Please ask them to create an account first.")
+      }
 
       // Check if any relationship already exists between youtuber and editor
       const { data: existingRelationship, error: relationshipError } = await supabase
@@ -239,6 +242,7 @@ export function EditorsClient({ user }: EditorsClientProps) {
       setInviteDialogOpen(false)
       form.reset()
       fetchEditors()
+      onInvitationSent?.()
     } catch (error: any) {
       console.error("Error in onSubmit:", error)
       toast({
