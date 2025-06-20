@@ -94,6 +94,7 @@ export async function generatePresignedUrl(request: PresignedUrlRequest): Promis
     }
 
     const userId = user.id
+    const userEmail = user.email || user.id
 
     // Check if user is a content creator (role = youtuber) when required
     if (requireYoutuberRole) {
@@ -158,11 +159,13 @@ export async function generatePresignedUrl(request: PresignedUrlRequest): Promis
       }
     }
 
-    // Format path for S3
+    // Format path for S3: upload/user_email/project_id/fileType/sanitizedFileName
     const sanitizedFileName = fileName.replace(/[^a-zA-Z0-9._-]/g, "_")
-    const filePath = customPath || (projectId 
-      ? `uploads/${userId}/${projectId}/${fileType}/${sanitizedFileName}`
-      : `initial-uploads/${userId}/${Date.now()}-${sanitizedFileName}`)
+    
+    // Generate projectId if not provided (for initial uploads before project creation)
+    const actualProjectId = projectId || `temp-${Date.now()}`
+    
+    const filePath = customPath || `upload/${userEmail}/${actualProjectId}/${fileType}/${sanitizedFileName}`
 
     // Initialize S3 client
     const s3Client = new S3Client({

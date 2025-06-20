@@ -193,10 +193,12 @@ export async function POST(
       ? versions[0].version_number + 1 
       : 1
 
-    // Generate a unique file name
+    // Generate a unique file name following the new structure: upload/user_email/project_id/fileType/filename
     const timestamp = Date.now()
     const cleanFileName = fileName.replace(/[^a-zA-Z0-9._-]/g, "_")
-    const s3Key = `projects/${projectId}/versions/v${nextVersionNumber}_${timestamp}_${cleanFileName}`
+    const userEmail = user.email || user.id
+    const versionFileName = `v${nextVersionNumber}_${timestamp}_${cleanFileName}`
+    const s3Key = `upload/${userEmail}/${projectId}/video/${versionFileName}`
 
     // Generate presigned URL for upload
     const result = await generatePresignedUrl({
