@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createServerClient } from "@/lib/supabase-server"
-import { generateVersionUploadUrl } from "@/lib/s3-service"
+import { generatePresignedUrl } from "@/lib/s3-service"
 
 export async function GET(
   request: NextRequest,
@@ -199,9 +199,11 @@ export async function POST(
     const s3Key = `projects/${projectId}/versions/v${nextVersionNumber}_${timestamp}_${cleanFileName}`
 
     // Generate presigned URL for upload
-    const result = await generateVersionUploadUrl({
-      key: s3Key,
+    const result = await generatePresignedUrl({
+      fileName: cleanFileName,
       contentType,
+      fileType: "video",
+      customPath: s3Key
     })
 
     if (result.error) {
