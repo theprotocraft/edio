@@ -12,7 +12,6 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { createProject, fetchEditors } from "@/lib/api"
-import DragDrop from "./drag-drop"
 import { Progress } from "@/components/ui/progress"
 import { createClient } from "@/app/lib/supabase-client"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -23,7 +22,6 @@ const projectSchema = z.object({
   projectTitle: z.string().min(1, "Project title is required"),
   videoTitle: z.string().optional(),
   description: z.string().optional(),
-  file: z.instanceof(File, { message: "Video file is required" }),
   selectedEditors: z.array(z.string()).optional(),
 })
 
@@ -78,7 +76,6 @@ export default function CreateProjectForm() {
         projectTitle: data.projectTitle,
         videoTitle: data.videoTitle,
         description: data.description,
-        file: data.file,
         selectedEditors: selectedEditors,
         onProgress: (progress: number) => {
           setUploadProgress(progress)
@@ -156,28 +153,6 @@ export default function CreateProjectForm() {
               )}
             />
 
-            <FormField
-              control={form.control}
-              name="file"
-              render={({ field: { onChange, value, ...rest } }) => (
-                <FormItem className="space-y-2">
-                  <FormLabel>Upload Video</FormLabel>
-                  <FormControl>
-                    <DragDrop
-                      accept={{ 'video/*': ['.mp4', '.mov'] }}
-                      maxSize={10 * 1024 * 1024 * 1024} // 10GB
-                      onDrop={(acceptedFiles: File[]) => {
-                        if (acceptedFiles.length > 0) {
-                          onChange(acceptedFiles[0])
-                        }
-                      }}
-                      value={value}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
 
             {!loadingEditors && editors.length > 0 && (
               <div className="space-y-2">

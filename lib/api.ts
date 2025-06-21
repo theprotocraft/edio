@@ -27,43 +27,15 @@ export async function createProject({
   projectTitle,
   videoTitle,
   description,
-  file,
   selectedEditors = [],
-  onProgress,
 }: {
   projectTitle: string;
   videoTitle?: string;
   description?: string;
-  file: File;
   selectedEditors?: string[];
-  onProgress?: (progress: number) => void;
 }) {
   try {
-    // Step 1: Get a presigned URL for the video upload
-    const presignResponse = await fetch("/api/uploads/initial", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        fileName: file.name,
-        contentType: file.type,
-        fileSize: file.size,
-        fileType: "video",
-      }),
-    })
-
-    if (!presignResponse.ok) {
-      const errorData = await presignResponse.json()
-      throw new Error(errorData.error || "Failed to get upload URL")
-    }
-
-    const { uploadUrl, fileUrl } = await presignResponse.json()
-
-    // Step 2: Upload the file to S3 with progress tracking
-    await uploadFileWithProgress(uploadUrl, file, onProgress)
-
-    // Step 3: Create the project record
+    // Create the project record
     const response = await fetch("/api/projects", {
       method: "POST",
       headers: {
@@ -73,9 +45,6 @@ export async function createProject({
         projectTitle,
         videoTitle,
         description,
-        fileUrl,
-        fileName: file.name,
-        fileSize: file.size,
         selectedEditors,
       }),
     })
