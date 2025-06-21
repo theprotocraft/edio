@@ -165,7 +165,12 @@ export async function generatePresignedUrl(request: PresignedUrlRequest): Promis
     // Generate projectId if not provided (for initial uploads before project creation)
     const actualProjectId = projectId || "initial_upload"
     
-    const filePath = customPath || `upload/${userEmail}/${actualProjectId}/${fileType}/${sanitizedFileName}`
+    // For initial uploads, add v1 prefix and timestamp suffix like version uploads
+    const finalFileName = projectId 
+      ? sanitizedFileName 
+      : `v1_${Date.now()}_${sanitizedFileName}`
+    
+    const filePath = customPath || `upload/${userEmail}/${actualProjectId}/${fileType}/${finalFileName}`
 
     // Initialize S3 client
     const s3Client = new S3Client({
