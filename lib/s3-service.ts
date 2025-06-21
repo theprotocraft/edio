@@ -163,7 +163,7 @@ export async function generatePresignedUrl(request: PresignedUrlRequest): Promis
     const sanitizedFileName = fileName.replace(/[^a-zA-Z0-9._-]/g, "_")
     
     // Generate projectId if not provided (for initial uploads before project creation)
-    const actualProjectId = projectId || `temp-${Date.now()}`
+    const actualProjectId = projectId || "initial_upload"
     
     const filePath = customPath || `upload/${userEmail}/${actualProjectId}/${fileType}/${sanitizedFileName}`
 
