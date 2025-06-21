@@ -11,19 +11,17 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { createProject, fetchEditors } from "@/lib/api"
-import DragDrop from "./drag-drop"
+import { createProject, fetchEditors, uploadVideoVersion } from "@/lib/api"
 import { Progress } from "@/components/ui/progress"
 import { createClient } from "@/app/lib/supabase-client"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { X } from "lucide-react"
+import { X, Upload, Video, FileVideo } from "lucide-react"
 
 const projectSchema = z.object({
   projectTitle: z.string().min(1, "Project title is required"),
   videoTitle: z.string().optional(),
   description: z.string().optional(),
-  file: z.instanceof(File, { message: "Video file is required" }),
   selectedEditors: z.array(z.string()).optional(),
 })
 
@@ -41,6 +39,10 @@ export default function CreateProjectForm() {
   const [editors, setEditors] = useState<Editor[]>([])
   const [loadingEditors, setLoadingEditors] = useState(true)
   const [selectedEditors, setSelectedEditors] = useState<string[]>([])
+  const [selectedVideo, setSelectedVideo] = useState<File | null>(null)
+  const [videoUploadProgress, setVideoUploadProgress] = useState(0)
+  const [isUploadingVideo, setIsUploadingVideo] = useState(false)
+  const [dragActive, setDragActive] = useState(false)
   const router = useRouter()
   const { toast } = useToast()
   const supabase = createClient()
@@ -69,25 +71,111 @@ export default function CreateProjectForm() {
     loadEditors()
   }, [])
 
+  const maxFileSize = 10 * 1024 * 1024 * 1024 // 10GB
+
+  const handleDrag = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setDragActive(true)
+    } else if (e.type === "dragleave") {
+      setDragActive(false)
+    }
+  }
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setDragActive(false)
+
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      const file = e.dataTransfer.files[0]
+      if (validateVideoFile(file)) {
+        setSelectedVideo(file)
+      }
+    }
+  }
+
+  const handleVideoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0]
+      if (validateVideoFile(file)) {
+        setSelectedVideo(file)
+      }
+    }
+  }
+
+  const validateVideoFile = (file: File): boolean => {
+    if (!file.type.startsWith("video/")) {
+      toast({
+        title: "Invalid file type",
+        description: "Please select a video file.",
+        variant: "destructive",
+      })
+      return false
+    }
+
+    if (file.size > maxFileSize) {
+      toast({
+        title: "File too large",
+        description: "Please select a file smaller than 10GB.",
+        variant: "destructive",
+      })
+      return false
+    }
+
+    return true
+  }
+
+  const removeVideoFile = () => {
+    setSelectedVideo(null)
+    setVideoUploadProgress(0)
+  }
+
+  const formatFileSize = (bytes: number): string => {
+    if (bytes === 0) return "0 Bytes"
+    const k = 1024
+    const sizes = ["Bytes", "KB", "MB", "GB"]
+    const i = Math.floor(Math.log(bytes) / Math.log(k))
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i]
+  }
+
   const onSubmit = async (data: ProjectFormValues) => {
     setLoading(true)
     setUploadProgress(0)
 
     try {
-      await createProject({
+      // First create the project
+      const project = await createProject({
         projectTitle: data.projectTitle,
         videoTitle: data.videoTitle,
         description: data.description,
-        file: data.file,
         selectedEditors: selectedEditors,
         onProgress: (progress: number) => {
           setUploadProgress(progress)
         },
       })
 
+      // If there's a video selected, upload it as the first version
+      if (selectedVideo && project.id) {
+        setIsUploadingVideo(true)
+        setVideoUploadProgress(0)
+        
+        await uploadVideoVersion({
+          projectId: project.id,
+          file: selectedVideo,
+          notes: "Initial video upload",
+          onProgress: (progress: number) => {
+            setVideoUploadProgress(progress)
+          },
+        })
+      }
+
       toast({
         title: "Project created",
-        description: "Your new project has been created successfully.",
+        description: selectedVideo 
+          ? "Your new project has been created and video uploaded successfully."
+          : "Your new project has been created successfully.",
       })
 
       // Navigate to projects page
@@ -100,6 +188,7 @@ export default function CreateProjectForm() {
       })
     } finally {
       setLoading(false)
+      setIsUploadingVideo(false)
     }
   }
 
@@ -156,28 +245,92 @@ export default function CreateProjectForm() {
               )}
             />
 
-            <FormField
-              control={form.control}
-              name="file"
-              render={({ field: { onChange, value, ...rest } }) => (
-                <FormItem className="space-y-2">
-                  <FormLabel>Upload Video</FormLabel>
-                  <FormControl>
-                    <DragDrop
-                      accept={{ 'video/*': ['.mp4', '.mov'] }}
-                      maxSize={10 * 1024 * 1024 * 1024} // 10GB
-                      onDrop={(acceptedFiles: File[]) => {
-                        if (acceptedFiles.length > 0) {
-                          onChange(acceptedFiles[0])
-                        }
-                      }}
-                      value={value}
+            {/* Video Upload Section */}
+            <div className="space-y-2">
+              <FormLabel>Upload Video (Optional)</FormLabel>
+              
+              {/* File Upload Area */}
+              {!selectedVideo && (
+                <div
+                  className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+                    dragActive
+                      ? "border-primary bg-primary/5"
+                      : "border-muted-foreground/25 hover:border-muted-foreground/50"
+                  }`}
+                  onDragEnter={handleDrag}
+                  onDragLeave={handleDrag}
+                  onDragOver={handleDrag}
+                  onDrop={handleDrop}
+                >
+                  <FileVideo className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+                  <div className="space-y-2">
+                    <p className="text-lg font-medium">Drop your video file here</p>
+                    <p className="text-sm text-muted-foreground">or click to browse</p>
+                    <input
+                      type="file"
+                      accept="video/*"
+                      onChange={handleVideoChange}
+                      className="hidden"
+                      id="video-upload"
+                      disabled={loading}
                     />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      asChild
+                      disabled={loading}
+                      className="mt-2"
+                    >
+                      <label htmlFor="video-upload" className="cursor-pointer">
+                        Browse Files
+                      </label>
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-4">
+                    Max file size: 10GB • Supported formats: MP4, MOV, AVI, etc.
+                  </p>
+                </div>
               )}
-            />
+
+              {/* Selected File */}
+              {selectedVideo && (
+                <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <FileVideo className="w-6 h-6 text-primary" />
+                    <div>
+                      <p className="font-medium text-sm">{selectedVideo.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {formatFileSize(selectedVideo.size)}
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={removeVideoFile}
+                    disabled={loading}
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+              )}
+
+              {/* Upload Progress */}
+              {isUploadingVideo && (
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span>Uploading video...</span>
+                    <span>{Math.round(videoUploadProgress)}%</span>
+                  </div>
+                  <Progress value={videoUploadProgress} className="w-full" />
+                </div>
+              )}
+              
+              <p className="text-xs text-muted-foreground">
+                You can upload a video now or add it later from the project page.
+              </p>
+            </div>
 
             {!loadingEditors && editors.length > 0 && (
               <div className="space-y-2">

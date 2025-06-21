@@ -148,19 +148,12 @@ export async function POST(request: Request) {
       projectTitle,
       videoTitle,
       description,
-      fileUrl,
-      fileName,
-      fileSize,
       selectedEditors
     } = await request.json()
     
     // Validate required fields
     if (!projectTitle) {
       return NextResponse.json({ error: "Project title is required" }, { status: 400 })
-    }
-    
-    if (!fileUrl || !fileName || !fileSize) {
-      return NextResponse.json({ error: "File information is required" }, { status: 400 })
     }
     
     // Create project record
@@ -181,61 +174,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Failed to create project" }, { status: 500 })
     }
 
-    // If an editor was assigned, create the project_editors record
-    // if (selectedEditors) {
-    //   const { error: editorError } = await supabase.rpc('add_project_editor', {
-    //     p_project_id: project.id,
-    //     p_editor_id: selectedEditors
-    //   })
-
-    //   if (editorError) {
-    //     console.error("Error assigning editor:", editorError)
-    //     // Don't fail the request, just log the error
-    //   }
-    // }
-    
-    // Create upload record
-    const { data: upload, error: uploadError } = await supabase
-      .from("uploads")
-      .insert({
-        project_id: project.id,
-        user_id: user.id,
-        file_url: fileUrl,
-        file_type: "video",
-        file_name: fileName,
-        file_size: fileSize
-      })
-      .select()
-      .single()
-      
-    if (uploadError || !upload) {
-      console.error("Error creating upload record:", uploadError)
-      // Project was created but upload record failed
-      // We could roll back the project here, but let's keep it simple for now
-      return NextResponse.json({ 
-        projectId: project.id,
-        warning: "Project created but upload record may be incomplete" 
-      })
-    }
-    
-    // Create initial video version record (version 1)
-    const { error: versionError } = await supabase
-      .from("video_versions")
-      .insert({
-        project_id: project.id,
-        uploader_id: user.id,
-        version_number: 1, // Initial version is always 1
-        file_url: fileUrl,
-        notes: "Initial upload"
-      })
-    
-    if (versionError) {
-      console.error("Error creating version record:", versionError)
-      return NextResponse.json({ 
-        projectId: project.id,
-        warning: "Project created but version record may be incomplete"
-      })
-    }
+    // Project is created without initial video - videos can be added later
     
     // Assign selected editors to the project
     if (selectedEditors && selectedEditors.length > 0) {
