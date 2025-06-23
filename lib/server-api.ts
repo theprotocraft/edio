@@ -12,61 +12,67 @@ export async function fetchDashboardData() {
       return { user: null, projects: [], notifications: [], isCreator: false }
     }
 
-    // Fetch user profile
-    const { data: userData, error: userError } = await supabase
-      .from("users")
-      .select("*")
-      .eq("id", user.id)
-      .single()
+    // Run all queries in parallel for maximum performance
+    const [
+      { data: userData, error: userError },
+      { data: ownedProjects, error: ownedProjectsError },
+      { data: assignedProjects, error: assignedProjectsError },
+      { data: notifications, error: notifError }
+    ] = await Promise.all([
+      // Fetch user profile
+      supabase
+        .from("users")
+        .select("*")
+        .eq("id", user.id)
+        .single(),
+      
+      // Fetch owned projects (for YouTubers)
+      supabase
+        .from("projects")
+        .select("*")
+        .eq("owner_id", user.id)
+        .order("updated_at", { ascending: false })
+        .limit(4),
+      
+      // Fetch assigned projects (for Editors)
+      supabase
+        .from("project_editors")
+        .select(`
+          project:projects(*)
+        `)
+        .eq("editor_id", user.id),
+      
+      // Fetch notifications
+      supabase
+        .from("notifications")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(5)
+    ])
       
     if (userError) {
       console.error("Error fetching user profile:", userError)
       return { user: null, projects: [], notifications: [], isCreator: false }
     }
 
-    // Fetch owned projects (for YouTubers)
-    const { data: ownedProjects, error: ownedError } = await supabase
-      .from("projects")
-      .select("*")
-      .eq("owner_id", user.id)
-      .order("updated_at", { ascending: false })
-      .limit(4)
-      
-    if (ownedError) {
-      console.error("Error fetching owned projects:", ownedError)
-    }
-
-    // Fetch projects where user is specifically assigned as editor
-    let assignedProjectsList = []
-    if (userData?.role === "editor") {
-      const { data: assignedProjects, error: assignedError } = await supabase
-        .from("project_editors")
-        .select(`
-          project:projects(*)
-        `)
-        .eq("editor_id", user.id)
-      
-      if (assignedError) {
-        console.error("Error fetching assigned projects:", assignedError)
+    // Process projects data based on role
+    let projects = []
+    if (userData?.role === "youtuber") {
+      if (ownedProjectsError) {
+        console.error("Error fetching owned projects:", ownedProjectsError)
       } else {
-        assignedProjectsList = assignedProjects?.map((ap: any) => ap.project).filter(Boolean) || []
+        projects = ownedProjects || []
+      }
+    } else if (userData?.role === "editor") {
+      if (assignedProjectsError) {
+        console.error("Error fetching assigned projects:", assignedProjectsError)
+      } else {
+        projects = (assignedProjects?.map((ap: any) => ap.project).filter(Boolean) || [])
+          .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
+          .slice(0, 4)
       }
     }
-
-    // Combine projects
-    const projects = [
-      ...(ownedProjects || []),
-      ...assignedProjectsList
-    ].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
-      .slice(0, 4);
-
-    // Fetch notifications
-    const { data: notifications, error: notifError } = await supabase
-      .from("notifications")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false })
-      .limit(5)
       
     if (notifError) {
       console.error("Error fetching notifications:", notifError)

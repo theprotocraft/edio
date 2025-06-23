@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server"
 import { createServerClient } from "@/lib/supabase-server"
 
+export const revalidate = 60 // Cache for 60 seconds
+
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -51,50 +53,52 @@ export async function GET(
       )
     }
 
-    // Get uploads
-    const { data: uploads, error: uploadsError } = await supabase
-      .from("uploads")
-      .select(`
-        *,
-        uploader:users(id, name, avatar_url)
-      `)
-      .eq("project_id", projectId)
-      .order("created_at", { ascending: false })
+    // Batch all remaining queries in parallel for better performance
+    const [
+      { data: uploads, error: uploadsError },
+      { data: messages, error: messagesError },
+      { data: versions, error: versionsError },
+      { data: { user } }
+    ] = await Promise.all([
+      supabase
+        .from("uploads")
+        .select(`
+          *,
+          uploader:users(id, name, avatar_url)
+        `)
+        .eq("project_id", projectId)
+        .order("created_at", { ascending: false }),
+      
+      supabase
+        .from("messages")
+        .select(`
+          *,
+          sender:users(id, name, email, avatar_url)
+        `)
+        .eq("project_id", projectId)
+        .order("created_at", { ascending: true }),
+      
+      supabase
+        .from("video_versions")
+        .select(`
+          *,
+          uploader:users(id, name, email)
+        `)
+        .eq("project_id", projectId)
+        .order("version_number", { ascending: false }),
+      
+      supabase.auth.getUser()
+    ])
 
     if (uploadsError) {
       console.error("Error fetching uploads:", uploadsError)
     }
-
-    // Get messages with sender information
-    const { data: messages, error: messagesError } = await supabase
-      .from("messages")
-      .select(`
-        *,
-        sender:users(id, name, email, avatar_url)
-      `)
-      .eq("project_id", projectId)
-      .order("created_at", { ascending: true })
-
     if (messagesError) {
       console.error("Error fetching messages:", messagesError)
     }
-
-    // Get video versions
-    const { data: versions, error: versionsError } = await supabase
-      .from("video_versions")
-      .select(`
-        *,
-        uploader:users(id, name, email)
-      `)
-      .eq("project_id", projectId)
-      .order("version_number", { ascending: false })
-
     if (versionsError) {
       console.error("Error fetching versions:", versionsError)
     }
-
-    // Get current user for userId
-    const { data: { user } } = await supabase.auth.getUser()
 
     // Transform the data to match the expected format
     const transformedProject = {
@@ -109,7 +113,9 @@ export async function GET(
       userId: user?.id
     }
 
-    return NextResponse.json(transformedProject)
+    const response = NextResponse.json(transformedProject)
+    response.headers.set('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300')
+    return response
   } catch (error) {
     console.error("Error in project route:", error)
     return NextResponse.json(

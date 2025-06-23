@@ -22,6 +22,8 @@ interface Project {
   }
 }
 
+export const revalidate = 30 // Cache for 30 seconds
+
 export default async function OverviewPage() {
   const supabase = await createServerClient()
   const { data: { user } } = await supabase.auth.getUser()

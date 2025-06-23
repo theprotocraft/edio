@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server"
 import { createRouteClient } from "@/app/supabase-route"
 
+export const revalidate = 30 // Cache for 30 seconds
+
 export async function GET(request: Request) {
   try {
     const supabase = await createRouteClient()
@@ -106,11 +108,13 @@ export async function GET(request: Request) {
       owner: project.users
     }))
     
-    return NextResponse.json({ 
+    const response = NextResponse.json({ 
       user, 
       projects: transformedProjects, 
       isCreator 
     })
+    response.headers.set('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=120')
+    return response
   } catch (error) {
     console.error("Error in projects GET API:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })

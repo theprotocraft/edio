@@ -23,27 +23,37 @@ interface Notification {
 export function Notifications() {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [loading, setLoading] = useState(true)
+  const [fetchPromise, setFetchPromise] = useState<Promise<void> | null>(null)
   const supabase = createClientComponentClient()
 
   const fetchNotifications = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
+    // Prevent duplicate requests
+    if (fetchPromise) return fetchPromise
 
-      const { data, error } = await supabase
-        .from("notifications")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false })
-        .limit(5)
+    const promise = (async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) return
 
-      if (error) throw error
-      setNotifications(data || [])
-    } catch (error) {
-      console.error("Error fetching notifications:", error)
-    } finally {
-      setLoading(false)
-    }
+        const { data, error } = await supabase
+          .from("notifications")
+          .select("*")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false })
+          .limit(5)
+
+        if (error) throw error
+        setNotifications(data || [])
+      } catch (error) {
+        console.error("Error fetching notifications:", error)
+      } finally {
+        setLoading(false)
+        setFetchPromise(null)
+      }
+    })()
+
+    setFetchPromise(promise)
+    return promise
   }
 
   useEffect(() => {
