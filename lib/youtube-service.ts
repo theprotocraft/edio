@@ -145,24 +145,69 @@ export async function uploadVideoToYouTubeByChannel({
     nodeStream.push(null)
 
     // Upload to YouTube using the stream
-    const uploadResponse = await youtube.videos.insert({
-      part: 'snippet,status',
-      requestBody: {
-        snippet: {
-          title,
-          description,
-          channelId,
-          tags,
+    let uploadResponse
+    try {
+      uploadResponse = await youtube.videos.insert({
+        part: ['snippet', 'status'],
+        requestBody: {
+          snippet: {
+            title,
+            description,
+            channelId,
+            tags
+          },
+          status: {
+            privacyStatus,
+            selfDeclaredMadeForKids: false,
+          },
         },
-        status: {
-          privacyStatus,
-          selfDeclaredMadeForKids: false,
+        media: {
+          body: nodeStream,
         },
-      },
-      media: {
-        body: nodeStream,
-      },
-    })
+      })
+    } catch (uploadError: any) {
+      console.error('Initial upload failed:', uploadError)
+      
+      // Check if it's an authentication error
+      if (uploadError.code === 401 || uploadError.message?.includes('authentication') || uploadError.message?.includes('credentials')) {
+        console.log('🔄 Authentication error detected, refreshing token and retrying...')
+        
+        // Refresh the token
+        const newAccessToken = await refreshYouTubeTokenByChannel(channelId)
+        
+        // Get a fresh YouTube client with the new token
+        const freshYoutube = await getYouTubeClientByChannel(channelId)
+        
+        // Recreate the stream from the stored arrayBuffer
+        const retryNodeStream = new Readable()
+        retryNodeStream.push(Buffer.from(arrayBuffer))
+        retryNodeStream.push(null)
+        
+        // Retry the upload with fresh authentication
+        uploadResponse = await freshYoutube.videos.insert({
+          part: ['snippet', 'status'],
+          requestBody: {
+            snippet: {
+              title,
+              description,
+              channelId,
+              tags
+            },
+            status: {
+              privacyStatus,
+              selfDeclaredMadeForKids: false,
+            },
+          },
+          media: {
+            body: retryNodeStream,
+          },
+        })
+        
+        console.log('✅ Upload succeeded after token refresh')
+      } else {
+        throw uploadError
+      }
+    }
 
     // If we have a thumbnail, upload it
     if (thumbnailUrl) {
