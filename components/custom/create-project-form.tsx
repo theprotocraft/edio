@@ -157,12 +157,12 @@ export default function CreateProjectForm() {
       })
 
       // If there's a video selected, upload it as the first version
-      if (selectedVideo && project.id) {
+      if (selectedVideo && project.projectId) {
         setIsUploadingVideo(true)
         setVideoUploadProgress(0)
         
         await uploadVideoVersion({
-          projectId: project.id,
+          projectId: project.projectId,
           file: selectedVideo,
           notes: "Initial video upload",
           onProgress: (progress: number) => {
