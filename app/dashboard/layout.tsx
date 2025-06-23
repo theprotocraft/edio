@@ -38,7 +38,7 @@ export default async function DashboardLayout({ children }: DashboardLayoutProps
     redirect("/login")
   }
   
-  let userRole = "editor" // Default role
+  let userRole: string | null = null
 
   try {
     // Fetch the user's role from the database
@@ -72,7 +72,7 @@ export default async function DashboardLayout({ children }: DashboardLayoutProps
       </header>
       <div className="flex-1 flex">
         <aside className="hidden w-[200px] flex-col md:flex bg-background/50 p-6">
-          <DashboardNav />
+          <DashboardNav userRole={userRole} />
         </aside>
         <main className="flex-1 flex flex-col p-6">
           {children}

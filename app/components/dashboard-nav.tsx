@@ -5,28 +5,13 @@ import { usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { LayoutDashboard, FileVideo, Users, Settings } from "lucide-react"
 import DashboardLogout from "@/components/dashboard-logout"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
-import { useEffect, useState } from "react"
 
-export function DashboardNav() {
+interface DashboardNavProps {
+  userRole: string | null
+}
+
+export function DashboardNav({ userRole }: DashboardNavProps) {
   const pathname = usePathname()
-  const [userRole, setUserRole] = useState<string | null>(null)
-  const supabase = createClientComponentClient()
-
-  useEffect(() => {
-    const checkUserRole = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (user) {
-        const { data } = await supabase
-          .from("users")
-          .select("role")
-          .eq("id", user.id)
-          .single()
-        setUserRole(data?.role || null)
-      }
-    }
-    checkUserRole()
-  }, [])
 
   return (
     <nav className="flex flex-col space-y-2">
