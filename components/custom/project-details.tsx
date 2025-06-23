@@ -815,7 +815,7 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
                   <div className="space-y-2">
                     <div className="flex justify-between text-xs text-muted-foreground">
                       <span>Uploading thumbnail...</span>
-                      <span>{uploadProgress}%</span>
+                      <span>{Math.round(uploadProgress)}%</span>
                     </div>
                     <Progress value={uploadProgress} className="h-2" />
                   </div>
