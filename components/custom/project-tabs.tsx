@@ -93,7 +93,12 @@ export function ProjectTabs({ project, uploads, versions, messages, userRole, us
         <TabsTrigger value="chat">Chat</TabsTrigger>
       </TabsList>
       <TabsContent value="details" className="mt-6">
-        <ProjectDetails project={currentProject} userRole={userRole} uploads={uploads} />
+        <ProjectDetails 
+          project={currentProject} 
+          userRole={userRole} 
+          uploads={uploads} 
+          onProjectUpdate={handleProjectUpdate}
+        />
       </TabsContent>
       <TabsContent value="versions" className="mt-6">
         <VideoVersions 

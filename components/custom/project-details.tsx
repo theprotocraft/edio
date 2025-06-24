@@ -32,6 +32,7 @@ interface ProjectDetailsProps {
   project: any
   userRole: "youtuber" | "editor"
   uploads?: any[]
+  onProjectUpdate?: (updates: any) => void
 }
 
 interface YouTubeChannel {
@@ -65,7 +66,7 @@ const projectDetailsSchema = z.object({
 
 type ProjectDetailsFormValues = z.infer<typeof projectDetailsSchema>
 
-export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetailsProps) {
+export function ProjectDetails({ project, userRole, uploads = [], onProjectUpdate }: ProjectDetailsProps) {
   const [loading, setLoading] = useState(false)
   const [selectedThumbnail, setSelectedThumbnail] = useState<File | null>(null)
   const [uploadingThumbnail, setUploadingThumbnail] = useState(false)
@@ -382,6 +383,11 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
       // Clear the cached thumbnail URL to force reload
       setThumbnailUrl(null)
 
+      // Notify parent component about the update
+      onProjectUpdate?.({
+        uploads: [...currentUploads.filter(upload => upload.file_type !== "thumbnail"), newUpload]
+      })
+
       toast({
         title: "Thumbnail uploaded",
         description: "Your thumbnail has been uploaded successfully.",
@@ -421,6 +427,11 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
       
       // Clear the cached thumbnail URL
       setThumbnailUrl(null)
+      
+      // Notify parent component about the update
+      onProjectUpdate?.({
+        uploads: currentUploads.filter(upload => upload.id !== thumbnailUpload.id)
+      })
       
       toast({
         title: "Success",
@@ -466,7 +477,12 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
       // Reset unsaved changes state after successful save
       setHasUnsavedChanges(false)
       
-      router.refresh()
+      // Notify parent component about the update
+      onProjectUpdate?.({
+        video_title: data.videoTitle,
+        description: data.description,
+        youtube_channel_id: data.youtubeChannel
+      })
     } catch (error: any) {
       toast({
         title: "Error",
@@ -581,7 +597,11 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
       })
 
       setPublishDialogOpen(false)
-      router.refresh()
+      
+      // Notify parent component about the update
+      onProjectUpdate?.({
+        refresh: true
+      })
     } catch (error: any) {
       toast({
         title: "Error",
@@ -605,6 +625,11 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
       
       // Reset unsaved changes since we just saved
       setHasUnsavedChanges(false)
+      
+      // Notify parent component about the update
+      onProjectUpdate?.({
+        youtube_channel_id: value
+      })
       
       toast({
         title: "Channel updated",
