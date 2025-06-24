@@ -463,6 +463,9 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
         description: "Your project details have been updated successfully.",
       })
 
+      // Reset unsaved changes state after successful save
+      setHasUnsavedChanges(false)
+      
       router.refresh()
     } catch (error: any) {
       toast({
@@ -600,6 +603,9 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
         youtube_channel_id: value,
       })
       
+      // Reset unsaved changes since we just saved
+      setHasUnsavedChanges(false)
+      
       toast({
         title: "Channel updated",
         description: "YouTube channel selection saved.",
@@ -675,7 +681,10 @@ export function ProjectDetails({ project, userRole, uploads = [] }: ProjectDetai
                       ) : (
                         <Select
                           value={field.value}
-                          onValueChange={field.onChange}
+                          onValueChange={(value) => {
+                            field.onChange(value)
+                            handleChannelChange(value)
+                          }}
                           disabled={loadingChannels}
                         >
                           <FormControl>
